@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+dist
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+coverage
+.nyc_output
+tests
+*.md
+!.github/*.md
+.vscode
+.idea
+*.swp
+*.swo
