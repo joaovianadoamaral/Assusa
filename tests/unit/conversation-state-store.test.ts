@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { InMemoryConversationStateStore } from '../../src/adapters/in-memory/in-memory-conversation-state-store.js';
-import { ConversationStateStore } from '../../src/domain/ports/conversation-state-store.js';
+import { ConversationStateStore } from '../../src/application/ports/driven/conversation-state-store.js';
 import { FlowType } from '../../src/domain/enums/flow-type.js';
-import { Logger } from '../../src/domain/ports/logger-port.js';
+import { Logger } from '../../src/application/ports/driven/logger-port.js';
 
 describe('ConversationStateStore', () => {
   let store: ConversationStateStore;

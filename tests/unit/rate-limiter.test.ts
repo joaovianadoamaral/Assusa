@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { InMemoryRateLimiter } from '../../src/adapters/in-memory/in-memory-rate-limiter.js';
-import { RateLimiter } from '../../src/domain/ports/rate-limiter.js';
-import { Logger } from '../../src/domain/ports/logger-port.js';
+import { RateLimiter } from '../../src/application/ports/driven/rate-limiter.js';
+import { Logger } from '../../src/application/ports/driven/logger-port.js';
 
 describe('RateLimiter', () => {
   let rateLimiter: RateLimiter;

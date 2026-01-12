@@ -1,5 +1,5 @@
 import pino from 'pino';
-import { Logger, LogContext } from '../../domain/ports/logger-port.js';
+import { Logger, LogContext } from '../../application/ports/driven/logger-port.js';
 import { sanitizeForLogs } from '../../domain/helpers/lgpd-helpers.js';
 
 export class PinoLogger implements Logger {

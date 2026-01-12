@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
-import { StoragePort } from '../../domain/ports/storage-port.js';
-import { Logger } from '../../domain/ports/logger-port.js';
+import { StoragePort } from '../../application/ports/driven/storage-port.js';
+import { Logger } from '../../application/ports/driven/logger-port.js';
 import { Config } from '../../infrastructure/config/config.js';
 
 export class RedisAdapter implements StoragePort {

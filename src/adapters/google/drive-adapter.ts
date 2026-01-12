@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { DrivePort } from '../../domain/ports/drive-port.js';
+import { DrivePort } from '../../application/ports/driven/drive-port.js';
 import { Logger } from '../../application/ports/driven/logger-port.js';
 import { Config } from '../../infrastructure/config/config.js';
 import { GoogleAuth } from '../../infrastructure/utils/google-auth.js';
