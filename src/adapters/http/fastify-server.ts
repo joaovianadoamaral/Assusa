@@ -80,7 +80,7 @@ export class FastifyServer {
       return reply.code(403).send({ error: 'Forbidden' });
     });
 
-    this.app.post('/webhook', async (request: FastifyRequest, reply: FastifyReply) => {
+    this.app.post('/webhooks/whatsapp', async (request: FastifyRequest, reply: FastifyReply) => {
       const requestId = request.id as string;
       const payload = request.body;
 
