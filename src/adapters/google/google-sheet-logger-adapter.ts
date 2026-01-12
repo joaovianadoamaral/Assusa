@@ -26,7 +26,7 @@ const EVENT_COLUMNS = [
 /**
  * Status possíveis para eventos
  */
-type EventStatus = 'SUCCESS' | 'ERROR' | 'NO_TITLES' | 'SENT' | 'DELETED';
+type EventStatus = 'SUCCESS' | 'ERROR' | 'NO_TITLES' | 'SENT' | 'DELETED' | 'RECEIVED';
 
 /**
  * Campos proibidos no payload (nunca devem ser armazenados)
@@ -281,7 +281,7 @@ export class GoogleSheetLoggerAdapter implements SheetLogger {
     // Se o payload já tem status, usar ele
     if (payload.status) {
       const status = String(payload.status).toUpperCase();
-      if (['SUCCESS', 'ERROR', 'NO_TITLES', 'SENT', 'DELETED'].includes(status)) {
+      if (['SUCCESS', 'ERROR', 'NO_TITLES', 'SENT', 'DELETED', 'RECEIVED'].includes(status)) {
         return status as EventStatus;
       }
     }
