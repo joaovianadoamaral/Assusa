@@ -7,9 +7,10 @@ import { Title } from '../../../domain/entities/title.js';
  */
 export interface TitleRepository {
   /**
-   * Busca títulos em aberto por hash do CPF
-   * @param cpfHash Hash do CPF (SHA256 + pepper)
+   * Busca títulos em aberto por CPF
+   * @param cpf CPF original (11 dígitos)
+   * @param cpfHash Hash do CPF (SHA256 + pepper) - usado apenas para logs
    * @returns Lista de títulos em aberto
    */
-  findOpenTitlesByCpfHash(cpfHash: string): Promise<Title[]>;
+  findOpenTitlesByCpfHash(cpf: string, cpfHash: string): Promise<Title[]>;
 }
