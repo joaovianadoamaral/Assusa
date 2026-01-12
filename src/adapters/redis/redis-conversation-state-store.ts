@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
-import { ConversationStateStore, ConversationState } from '../../domain/ports/conversation-state-store.js';
-import { Logger } from '../../domain/ports/logger-port.js';
+import { ConversationStateStore, ConversationState } from '../../application/ports/driven/conversation-state-store.js';
+import { Logger } from '../../application/ports/driven/logger-port.js';
 import { Config } from '../../infrastructure/config/config.js';
 
 const DEFAULT_TTL_SECONDS = 15 * 60; // 15 minutos
