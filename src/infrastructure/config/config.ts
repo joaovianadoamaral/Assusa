@@ -21,12 +21,14 @@ const configSchema = z.object({
   sicoobKeyPath: z.string().optional(),
 
   // Google
-  googleClientEmail: z.string().email(),
-  googlePrivateKey: z.string().min(1),
-  googleProjectId: z.string().min(1),
+  googleServiceAccountJsonBase64: z.string().min(1),
   googleDriveFolderId: z.string().min(1),
   googleSheetsSpreadsheetId: z.string().min(1),
   googleSheetsWorksheetName: z.string().default('Requests'),
+  // Campos legados (opcionais para compatibilidade durante migração)
+  googleClientEmail: z.string().email().optional(),
+  googlePrivateKey: z.string().min(1).optional(),
+  googleProjectId: z.string().min(1).optional(),
 
   // Redis
   redisUrl: z.string().url().optional(),
@@ -67,12 +69,14 @@ export function loadConfig(): Config {
       sicoobBaseUrl: process.env.SICOOB_BASE_URL,
       sicoobCertificatePath: process.env.SICOOB_CERTIFICATE_PATH,
       sicoobKeyPath: process.env.SICOOB_KEY_PATH,
-      googleClientEmail: process.env.GOOGLE_CLIENT_EMAIL,
-      googlePrivateKey: process.env.GOOGLE_PRIVATE_KEY,
-      googleProjectId: process.env.GOOGLE_PROJECT_ID,
+      googleServiceAccountJsonBase64: process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64,
       googleDriveFolderId: process.env.GOOGLE_DRIVE_FOLDER_ID,
       googleSheetsSpreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
       googleSheetsWorksheetName: process.env.GOOGLE_SHEETS_WORKSHEET_NAME,
+      // Campos legados (opcionais para compatibilidade durante migração)
+      googleClientEmail: process.env.GOOGLE_CLIENT_EMAIL,
+      googlePrivateKey: process.env.GOOGLE_PRIVATE_KEY,
+      googleProjectId: process.env.GOOGLE_PROJECT_ID,
       redisUrl: process.env.REDIS_URL,
       redisEnabled: process.env.REDIS_ENABLED,
       cpfPepper: process.env.CPF_PEPPER,
