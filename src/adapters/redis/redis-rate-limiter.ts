@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
-import { RateLimiter, RateLimitResult } from '../../domain/ports/rate-limiter.js';
-import { Logger } from '../../domain/ports/logger-port.js';
+import { RateLimiter, RateLimitResult } from '../../application/ports/driven/rate-limiter.js';
+import { Logger } from '../../application/ports/driven/logger-port.js';
 import { Config } from '../../infrastructure/config/config.js';
 
 export class RedisRateLimiter implements RateLimiter {

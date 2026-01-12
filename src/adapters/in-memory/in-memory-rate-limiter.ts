@@ -1,5 +1,5 @@
-import { RateLimiter, RateLimitResult } from '../../domain/ports/rate-limiter.js';
-import { Logger } from '../../domain/ports/logger-port.js';
+import { RateLimiter, RateLimitResult } from '../../application/ports/driven/rate-limiter.js';
+import { Logger } from '../../application/ports/driven/logger-port.js';
 
 /**
  * Implementação em memória do RateLimiter
