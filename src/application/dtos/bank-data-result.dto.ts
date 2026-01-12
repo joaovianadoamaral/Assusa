@@ -3,6 +3,7 @@
  */
 export interface BankDataResult {
   linhaDigitavel: string;
+  codigoBarras?: string;
   valor: number;
   vencimento: Date;
   nossoNumero: string;
