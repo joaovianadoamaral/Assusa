@@ -32,6 +32,12 @@
 
 **Regra de Ouro**: Se você precisar usar "e" ou "também" na mensagem do commit, provavelmente precisa dividir em múltiplos commits.
 
+### Configuração de Usuário Git
+
+- ❌ **NUNCA alterar** o nome e email do commit da configuração global do Git
+- ✅ **SEMPRE usar** a configuração global existente (`git config --global user.name` e `git config --global user.email`)
+- Se for necessário usar configuração específica do repositório, documentar o motivo em `docs/adr/` ou comentário no `.cursorrules`
+
 ## 🌐 Idioma e Comunicação
 
 - Sempre responder em **português**
@@ -125,3 +131,57 @@ O projeto segue **Clean Architecture (Ports & Adapters)**. Respeite a separaçã
 - Atualizar README.md quando adicionar funcionalidades significativas
 - Documentar funções complexas com JSDoc
 - Manter comentários explicativos apenas quando necessário (código deve ser auto-explicativo)
+
+## 🤖 Regras Operacionais do Agente (Cursor)
+
+**OBJETIVO**: Aumentar a taxa de acerto do desenvolvimento através de milestones testáveis, validação contínua e entrega incremental.
+
+### Trabalho por Milestones
+
+- Trabalhar em **MILESTONES pequenas e testáveis**. Implementar apenas **1 milestone por vez**.
+- Sempre perguntar/confirmar implicitamente via execução: "rodou localmente? passou testes? validou manualmente?" (sem avançar se não houver como validar).
+- **Proibido avançar** para a próxima milestone sem que a milestone atual esteja:
+  - ✅ build ok (`npm run build`)
+  - ✅ testes ok (`npm test` ou `pnpm test`, conforme o repo)
+  - ✅ e uma forma clara de validação manual (curl/postman/whatsapp webhook simulado)
+
+### Entrega ao Final de Cada Alteração
+
+Sempre entregar no final de cada alteração:
+
+1. **Lista de arquivos criados/alterados**
+2. **Comandos exatos para rodar**
+3. **Como testar** (passo a passo)
+4. **Critérios de pronto** (Definition of Done) da milestone
+5. **Possíveis falhas e como diagnosticar** (logs onde olhar)
+
+### Informações Externas e Segredos
+
+- Se faltar informação externa (ex.: credenciais, URLs, tokens, IDs de API):
+  - ✅ usar **placeholders e variáveis de ambiente**
+  - ✅ documentar exatamente quais env vars são necessárias e exemplos
+  - ❌ **NUNCA hardcode de segredos**
+
+### Não Inventar Payloads
+
+- ❌ **Não assumir** campos/formatos de terceiros sem evidência no código/docs existentes
+- ✅ criar `types/interfaces` + validação runtime (ex.: zod) quando fizer sentido
+- ✅ quando um payload for incerto, implementar de modo **tolerante** e registrar **logs seguros**
+
+### Mudanças Incrementais
+
+- Mudanças devem ser **mínimas e incrementais**:
+  - ✅ preferir PRs/diffs pequenos
+  - ❌ evitar refactors grandes junto com feature nova
+
+### Logs e LGPD
+
+- ❌ **nunca logar dados sensíveis**
+- ✅ usar sempre utilitário de sanitização/masking/hashing definido no projeto
+
+### Resolução de Conflitos
+
+- Se houver conflito entre regra do `.cursorrules` e o código existente:
+  - ❌ não "chutar" uma decisão
+  - ✅ registrar a decisão numa nota curta (ex.: `docs/adr/`) ou comentário no `.cursorrules`
+  - ✅ seguir o padrão já adotado no repositório até haver decisão explícita
