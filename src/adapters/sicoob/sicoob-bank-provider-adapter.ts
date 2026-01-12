@@ -35,33 +35,8 @@ interface SicoobAuthResponse {
   expires_in: number;
 }
 
-/**
- * Resposta de consulta de boleto do Sicoob
- * Ajustado conforme API Cobrança Bancária v3
- */
-interface SicoobBoletoResponse {
-  resultado?: {
-    nossoNumero?: string;
-    numeroDocumento?: string;
-    valor?: number;
-    dataVencimento?: string;
-    situacao?: string;
-    linhaDigitavel?: string;
-    codigoBarras?: string;
-    pdfBoleto?: string; // Base64 quando gerarPdf=true
-    beneficiario?: {
-      nome?: string;
-      documento?: string;
-    };
-    pagador?: {
-      nome?: string;
-      documento?: string;
-    };
-    [key: string]: unknown;
-  };
-  // Para compatibilidade com respostas que retornam array
-  [key: string]: unknown;
-}
+// Interface SicoobBoletoResponse removida - não é mais usada diretamente
+// A resposta de segunda via usa SicoobSegundaViaResponse
 
 /**
  * Resposta de segunda via do Sicoob (GET /boletos/segunda-via)
@@ -565,10 +540,8 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
    * Por enquanto, este método está implementado conforme a rota correta,
    * mas requer adaptação para funcionar com hash.
    */
-  async buscarBoletosPorCPF(cpfHash: string, requestId: string): Promise<BoletoSicoob[]> {
+  async buscarBoletosPorCPF(_cpfHash: string, requestId: string): Promise<BoletoSicoob[]> {
     try {
-      const token = await this.getAuthToken();
-
       // NOTA: A API do Sicoob requer CPF/CNPJ real (11 ou 14 dígitos)
       // Como recebemos hash, precisaríamos de um mapeamento reverso
       // Por enquanto, vamos assumir que o sistema tem uma forma de obter o CPF original
@@ -630,7 +603,7 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
       // Não logar payload bruto do banco (conforme regras LGPD)
       this.logger.error({ 
         requestId, 
-        cpfHash: cpfHash.slice(0, 8) + '...', // Log apenas hash parcial
+        cpfHash: _cpfHash.slice(0, 8) + '...', // Log apenas hash parcial
         code: errorCode,
         statusCode,
       }, 'Erro ao buscar boletos no Sicoob');

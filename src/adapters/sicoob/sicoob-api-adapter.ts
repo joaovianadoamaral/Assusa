@@ -12,21 +12,8 @@ interface SicoobAuthResponse {
   expires_in: number;
 }
 
-interface SicoobBoletoResponse {
-  resultado?: {
-    nossoNumero?: string;
-    numeroDocumento?: string;
-    valor?: number;
-    dataVencimento?: string;
-    situacao?: string;
-    linhaDigitavel?: string;
-    codigoBarras?: string;
-    pdfBoleto?: string; // Base64 quando gerarPdf=true
-    [key: string]: unknown;
-  };
-  // Para compatibilidade com respostas que retornam array
-  [key: string]: unknown;
-}
+// Interface removida - não é mais usada diretamente
+// A resposta de segunda via usa SicoobSegundaViaResponse
 
 /**
  * Resposta de segunda via do Sicoob (GET /boletos/segunda-via)
@@ -106,10 +93,8 @@ export class SicoobApiAdapter implements SicoobPort {
     }
   }
 
-  async buscarBoletosPorCPF(cpfHash: string, requestId: string): Promise<BoletoSicoob[]> {
+  async buscarBoletosPorCPF(_cpfHash: string, requestId: string): Promise<BoletoSicoob[]> {
     try {
-      const token = await this.getAuthToken(requestId);
-
       // NOTA: A API do Sicoob requer CPF/CNPJ real, não hash.
       // Este método recebe cpfHash, mas a API precisa do CPF original.
       // Em produção, seria necessário ter um sistema intermediário que mapeie

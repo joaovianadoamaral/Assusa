@@ -2,7 +2,6 @@ import { FlowType } from '../../domain/enums/flow-type.js';
 import { ConversationStateStore } from '../../application/ports/driven/conversation-state-store.js';
 import { WhatsAppPort } from '../../application/ports/driven/whatsapp-port.js';
 import { Logger } from '../../application/ports/driven/logger-port.js';
-import { Title } from '../../domain/entities/title.js';
 
 /**
  * Use Case: Selecionar título e mostrar menu de formato
