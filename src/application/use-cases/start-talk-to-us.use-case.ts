@@ -17,8 +17,7 @@ export class StartTalkToUsUseCase {
 
   async execute(from: string, requestId: string): Promise<void> {
     const messageText = `📞 *Fale com a gente*\n\n` +
-      `Por favor, envie uma mensagem curta descrevendo como podemos ajudá-lo:\n\n` +
-      `(Máximo de 500 caracteres)`;
+      `Escreva em 1 frase como posso te ajudar.`;
 
     await this.whatsapp.sendText(from, messageText, requestId);
 
