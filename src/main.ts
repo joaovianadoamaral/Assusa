@@ -56,7 +56,7 @@ async function bootstrap() {
     const bankProvider = new SicoobBankProviderAdapter(sicoobAdapter, logger);
     const pdfService = new SimplePdfServiceAdapter(logger);
     const driveStorage = new GoogleDriveStorageAdapter(driveAdapter, logger);
-    const sheetLogger = new GoogleSheetLoggerAdapter(sheetsAdapter, logger);
+    const sheetLogger = new GoogleSheetLoggerAdapter(config, logger);
     const siteLinkService = new SiteLinkServiceAdapter(config, logger);
 
     // Inicializar rate limiter
