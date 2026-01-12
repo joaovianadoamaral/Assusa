@@ -18,19 +18,21 @@ npm install
 
 ### 2. Configurar Variáveis de Ambiente
 
-Copie o arquivo `.env.example` para `.env`:
+Crie um arquivo `.env` na raiz do projeto e copie o template de `docs/ENV_TEMPLATE.md`:
 
 ```bash
 # No Windows (PowerShell)
-Copy-Item .env.example .env
+# Copie o conteúdo de docs/ENV_TEMPLATE.md e crie o arquivo .env
 
 # No Linux/Mac
-cp .env.example .env
+cat docs/ENV_TEMPLATE.md | grep -A 1000 "^```env" | grep -B 1000 "^```$" | sed '1d;$d' > .env
 ```
+
+**Alternativa:** Copie manualmente o conteúdo de `docs/ENV_TEMPLATE.md` (seção entre ```env e ```) para um novo arquivo `.env`.
 
 ### 3. Preencher Variáveis de Ambiente
 
-Abra o arquivo `.env` e preencha todas as variáveis necessárias.
+Abra o arquivo `.env` e preencha todas as variáveis necessárias com seus valores reais.
 
 #### Variáveis Obrigatórias
 
@@ -99,7 +101,20 @@ Para desenvolvimento com hot-reload:
 npm run dev
 ```
 
-### 7. Verificar se está funcionando
+### 7. Validar Configuração
+
+Antes de iniciar o servidor, valide se todas as variáveis estão configuradas corretamente:
+
+```bash
+npm run validate-config
+```
+
+Este comando verifica:
+- ✅ Todas as variáveis obrigatórias estão presentes
+- ✅ Valores são válidos (formato, tamanho, etc.)
+- ⚠️  Avisos sobre configurações opcionais recomendadas
+
+### 8. Verificar se está funcionando
 
 ```bash
 # Health check
