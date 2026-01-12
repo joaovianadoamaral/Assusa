@@ -37,26 +37,45 @@ interface SicoobAuthResponse {
 
 /**
  * Resposta de consulta de boleto do Sicoob
- * TODO: Ajustar campos conforme catálogo da API do Sicoob
+ * Ajustado conforme API Cobrança Bancária v3
  */
 interface SicoobBoletoResponse {
-  nossoNumero: string;
-  numeroDocumento?: string;
-  valor: number;
-  dataVencimento?: string;
-  situacao?: string;
-  linhaDigitavel?: string;
-  codigoBarras?: string;
-  beneficiario?: {
-    nome?: string;
-    documento?: string;
+  resultado?: {
+    nossoNumero?: string;
+    numeroDocumento?: string;
+    valor?: number;
+    dataVencimento?: string;
+    situacao?: string;
+    linhaDigitavel?: string;
+    codigoBarras?: string;
+    pdfBoleto?: string; // Base64 quando gerarPdf=true
+    beneficiario?: {
+      nome?: string;
+      documento?: string;
+    };
+    pagador?: {
+      nome?: string;
+      documento?: string;
+    };
+    [key: string]: unknown;
   };
-  pagador?: {
-    nome?: string;
-    documento?: string;
-  };
-  // TODO: Adicionar campos exigidos conforme catálogo (beneficiário/contrato/cooperativa)
+  // Para compatibilidade com respostas que retornam array
   [key: string]: unknown;
+}
+
+/**
+ * Resposta de segunda via do Sicoob (GET /boletos/segunda-via)
+ */
+interface SicoobSegundaViaResponse {
+  resultado: {
+    nossoNumero?: string;
+    linhaDigitavel?: string;
+    codigoBarras?: string;
+    pdfBoleto?: string; // Base64 quando gerarPdf=true
+    valor?: number;
+    dataVencimento?: string;
+    [key: string]: unknown;
+  };
 }
 
 /**
@@ -223,9 +242,8 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
     }
 
     try {
-      // TODO: Ajustar rota de autenticação conforme catálogo do Sicoob
-      // Exemplos comuns: /auth/token, /oauth/token, /token
-      const authUrl = `${this.config.sicoobBaseUrl}/auth/token`;
+      // Usar URL de autenticação configurável (padrão: endpoint OAuth do Sicoob)
+      const authUrl = this.config.sicoobAuthTokenUrl;
 
       const response = await axios.post<SicoobAuthResponse>(
         authUrl,
@@ -312,11 +330,8 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
   /**
    * Obtém o PDF da segunda via de um título
    * 
-   * TODO: Ajustar rota conforme catálogo do Sicoob
-   * Exemplos comuns:
-   * - GET /boletos/{nossoNumero}/pdf
-   * - GET /cobranca/boletos/{nossoNumero}/segunda-via
-   * - POST /boletos/segunda-via com body { nossoNumero }
+   * Usa GET /boletos/segunda-via com gerarPdf=true
+   * Retorna JSON com campo pdfBoleto em Base64
    */
   async getSecondCopyPdf(title: Title): Promise<BankPdfResult | null> {
     const requestId = crypto.randomUUID();
@@ -324,30 +339,56 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
     try {
       const token = await this.getAuthToken();
 
-      // TODO: Ajustar rota conforme catálogo do Sicoob
-      // TODO: Verificar se é necessário passar contrato/cooperativa/beneficiário na rota ou headers
-      const pdfUrl = `/boletos/${title.nossoNumero}/pdf`;
+      // Montar query params obrigatórios
+      const queryParams: Record<string, string> = {
+        numeroCliente: this.config.sicoobNumeroCliente,
+        codigoModalidade: this.config.sicoobCodigoModalidade,
+        nossoNumero: title.nossoNumero,
+        gerarPdf: 'true',
+      };
 
-      const response = await this.api.get(pdfUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Request-ID': requestId,
-          // TODO: Adicionar headers exigidos conforme catálogo (ex: X-Cooperativa, X-Contrato)
-        },
-        responseType: 'arraybuffer',
-        httpsAgent: this.httpsAgent, // Usar mTLS se configurado
-      });
+      // Adicionar contrato se configurado
+      if (this.config.sicoobNumeroContratoCobranca) {
+        queryParams.numeroContratoCobranca = this.config.sicoobNumeroContratoCobranca;
+      }
 
-      // Verificar se a resposta é realmente um PDF
-      const buffer = Buffer.from(response.data);
+      const response = await this.api.get<SicoobSegundaViaResponse>(
+        '/boletos/segunda-via',
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'client_id': this.config.sicoobClientId,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
+          },
+          params: queryParams,
+          httpsAgent: this.httpsAgent, // Usar mTLS se configurado
+        }
+      );
+
+      // Extrair pdfBoleto do resultado
+      const pdfBase64 = response.data?.resultado?.pdfBoleto;
+      
+      if (!pdfBase64) {
+        this.logger.warn({ 
+          requestId, 
+          nossoNumero: title.nossoNumero
+        }, 'PDF não encontrado na resposta da segunda via');
+        return null;
+      }
+
+      // Converter Base64 para Buffer
+      const buffer = Buffer.from(pdfBase64, 'base64');
+      
+      // Validar que é um PDF válido (começa com "%PDF")
       const isPdf = buffer.slice(0, 4).toString() === '%PDF';
       
       if (!isPdf) {
         this.logger.warn({ 
           requestId, 
-          nossoNumero: title.nossoNumero,
-          contentType: response.headers['content-type']
-        }, 'Resposta não é um PDF válido');
+          nossoNumero: title.nossoNumero
+        }, 'Dados Base64 não correspondem a um PDF válido');
         return null;
       }
 
@@ -355,7 +396,7 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
         requestId, 
         nossoNumero: title.nossoNumero,
         pdfSize: buffer.length 
-      }, 'PDF da segunda via obtido do Sicoob');
+      }, 'PDF da segunda via obtido do Sicoob (Base64 convertido)');
 
       return {
         buffer,
@@ -393,11 +434,8 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
   /**
    * Obtém os dados de um título para geração de PDF
    * 
-   * TODO: Ajustar rota conforme catálogo do Sicoob
-   * Exemplos comuns:
-   * - GET /boletos/{nossoNumero}
-   * - GET /cobranca/boletos/{nossoNumero}
-   * - POST /boletos/consultar com body { nossoNumero }
+   * Usa GET /boletos/segunda-via com gerarPdf=false para obter dados atualizados
+   * Alternativamente, pode usar GET /boletos para consulta geral
    */
   async getSecondCopyData(title: Title): Promise<BankDataResult | null> {
     const requestId = crypto.randomUUID();
@@ -405,48 +443,73 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
     try {
       const token = await this.getAuthToken();
 
-      // TODO: Ajustar rota conforme catálogo do Sicoob
-      // TODO: Verificar se é necessário passar contrato/cooperativa/beneficiário na rota ou headers
-      const consultaUrl = `/boletos/${title.nossoNumero}`;
+      // Montar query params obrigatórios
+      const queryParams: Record<string, string> = {
+        numeroCliente: this.config.sicoobNumeroCliente,
+        codigoModalidade: this.config.sicoobCodigoModalidade,
+        nossoNumero: title.nossoNumero,
+        gerarPdf: 'false',
+      };
 
-      const response = await this.api.get<SicoobBoletoResponse>(consultaUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Request-ID': requestId,
-          // TODO: Adicionar headers exigidos conforme catálogo (ex: X-Cooperativa, X-Contrato)
-        },
-        httpsAgent: this.httpsAgent, // Usar mTLS se configurado
-      });
+      // Adicionar contrato se configurado
+      if (this.config.sicoobNumeroContratoCobranca) {
+        queryParams.numeroContratoCobranca = this.config.sicoobNumeroContratoCobranca;
+      }
 
-      const boleto = response.data;
+      // Usar /boletos/segunda-via com gerarPdf=false para obter dados atualizados
+      const response = await this.api.get<SicoobSegundaViaResponse>(
+        '/boletos/segunda-via',
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'client_id': this.config.sicoobClientId,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
+          },
+          params: queryParams,
+          httpsAgent: this.httpsAgent, // Usar mTLS se configurado
+        }
+      );
 
-      // Validar campos obrigatórios
-      if (!boleto.nossoNumero || !boleto.valor) {
+      const resultado = response.data?.resultado;
+
+      if (!resultado) {
         this.logger.warn({ 
           requestId, 
           nossoNumero: title.nossoNumero 
-        }, 'Dados do boleto incompletos');
+        }, 'Resultado não encontrado na resposta');
         return null;
       }
 
-      // TODO: Mapear campos conforme estrutura real da API do Sicoob
-      // Ajustar conforme catálogo (linhaDigitavel pode vir em campo diferente)
-      const linhaDigitavel = boleto.linhaDigitavel || boleto.codigoBarras || '';
-      
-      if (!linhaDigitavel) {
+      // Validar campos obrigatórios
+      if (!resultado.nossoNumero) {
         this.logger.warn({ 
           requestId, 
           nossoNumero: title.nossoNumero 
-        }, 'Linha digitável não encontrada nos dados do boleto');
+        }, 'Dados do boleto incompletos (nossoNumero ausente)');
+        return null;
+      }
+
+      // Extrair linha digitável e código de barras
+      const linhaDigitavel = resultado.linhaDigitavel || '';
+      const codigoBarras = resultado.codigoBarras || '';
+      
+      // Se não tiver linha digitável, tentar usar código de barras
+      const linhaDigitavelFinal = linhaDigitavel || codigoBarras || '';
+      
+      if (!linhaDigitavelFinal) {
+        this.logger.warn({ 
+          requestId, 
+          nossoNumero: title.nossoNumero 
+        }, 'Linha digitável e código de barras não encontrados nos dados do boleto');
         // Não retornar null - tentar usar dados disponíveis
       }
 
-      const vencimento = boleto.dataVencimento 
-        ? new Date(boleto.dataVencimento)
+      const valor = resultado.valor || title.valor || 0;
+      const vencimento = resultado.dataVencimento 
+        ? new Date(resultado.dataVencimento)
         : title.vencimento || new Date();
-
-      const beneficiario = boleto.beneficiario?.nome || undefined;
-      const pagador = boleto.pagador?.nome || undefined;
 
       this.logger.info({ 
         requestId, 
@@ -454,12 +517,13 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
       }, 'Dados do boleto obtidos do Sicoob');
 
       return {
-        nossoNumero: boleto.nossoNumero,
-        linhaDigitavel,
-        valor: boleto.valor,
+        nossoNumero: resultado.nossoNumero,
+        linhaDigitavel: linhaDigitavelFinal,
+        codigoBarras: resultado.codigoBarras,
+        valor,
         vencimento,
-        beneficiario,
-        pagador,
+        beneficiario: undefined,
+        pagador: undefined,
       };
     } catch (error) {
       const errorCode = this.mapErrorToCode(error);
@@ -492,45 +556,73 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
   /**
    * Busca boletos por CPF hash (implementação de SicoobPort)
    * 
-   * TODO: Ajustar rota conforme catálogo do Sicoob
-   * Nota: A API do Sicoob normalmente busca por CPF diretamente.
-   * Como estamos usando hash, pode ser necessário adaptar a estratégia.
+   * Usa GET /pagadores/{numeroCpfCnpj}/boletos
+   * 
+   * NOTA IMPORTANTE: A API do Sicoob requer CPF/CNPJ real, não hash.
+   * Este método recebe cpfHash, mas a API precisa do CPF original.
+   * Em produção, seria necessário ter um sistema intermediário que mapeie
+   * hash -> CPF (sem armazenar o CPF) ou usar outra estratégia.
+   * Por enquanto, este método está implementado conforme a rota correta,
+   * mas requer adaptação para funcionar com hash.
    */
   async buscarBoletosPorCPF(cpfHash: string, requestId: string): Promise<BoletoSicoob[]> {
     try {
       const token = await this.getAuthToken();
 
-      // TODO: Ajustar rota conforme catálogo do Sicoob
-      // TODO: Verificar se é necessário passar contrato/cooperativa/beneficiário na rota ou headers
-      // Nota: A API real do Sicoob provavelmente não aceita hash de CPF diretamente
-      // Seria necessário ter um sistema intermediário ou usar outra abordagem
+      // NOTA: A API do Sicoob requer CPF/CNPJ real (11 ou 14 dígitos)
+      // Como recebemos hash, precisaríamos de um mapeamento reverso
+      // Por enquanto, vamos assumir que o sistema tem uma forma de obter o CPF original
+      // sem armazená-lo permanentemente (ex: cache temporário durante o fluxo)
+      
+      // TODO: Implementar estratégia para obter CPF original a partir do hash
+      // Por enquanto, lançar erro informativo
+      throw new Error(
+        'buscarBoletosPorCPF requer CPF original, não hash. ' +
+        'Implementar estratégia de mapeamento hash->CPF temporário ou usar outra abordagem.'
+      );
+
+      // Código comentado para referência da rota correta:
+      /*
+      const cpfOriginal = await this.getCpfFromHash(cpfHash); // Método a ser implementado
+      
       const response = await this.api.get<SicoobBoletoResponse[]>(
-        '/boletos', // Endpoint real pode variar
+        `/pagadores/${cpfOriginal}/boletos`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
+            'client_id': this.config.sicoobClientId,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
             'X-Request-ID': requestId,
-            // TODO: Adicionar headers exigidos conforme catálogo (ex: X-Cooperativa, X-Contrato)
           },
           params: {
-            // Adaptar conforme documentação real da API
-            cpfHash, // Isso provavelmente não funcionará diretamente - é um exemplo
+            // Adicionar query params se necessário (contrato, modalidade, etc.)
+            numeroContratoCobranca: this.config.sicoobNumeroContratoCobranca,
           },
-          httpsAgent: this.httpsAgent, // Usar mTLS se configurado
+          httpsAgent: this.httpsAgent,
         }
       );
 
-      const boletos: BoletoSicoob[] = response.data.map(boleto => ({
-        nossoNumero: boleto.nossoNumero,
-        numeroDocumento: boleto.numeroDocumento || '',
-        valor: boleto.valor,
-        vencimento: boleto.dataVencimento || '',
-        situacao: boleto.situacao || '',
-      }));
+      // A resposta pode ser um array direto ou um objeto com resultado
+      const boletosArray = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data as { resultado?: SicoobBoletoResponse[] }).resultado || [];
+
+      const boletos: BoletoSicoob[] = boletosArray.map(boleto => {
+        const resultado = boleto.resultado || boleto;
+        return {
+          nossoNumero: resultado.nossoNumero || '',
+          numeroDocumento: resultado.numeroDocumento || '',
+          valor: resultado.valor || 0,
+          vencimento: resultado.dataVencimento || '',
+          situacao: resultado.situacao || '',
+        };
+      });
 
       this.logger.info({ requestId, count: boletos.length }, 'Boletos encontrados no Sicoob');
 
       return boletos;
+      */
     } catch (error) {
       const errorCode = this.mapErrorToCode(error);
       const statusCode = this.getStatusCode(error);
@@ -555,7 +647,7 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
   /**
    * Gera segunda via de boleto (implementação de SicoobPort)
    * 
-   * TODO: Ajustar rota conforme catálogo do Sicoob
+   * Usa GET /boletos/segunda-via com gerarPdf=true
    * Este método é mantido para compatibilidade com SicoobPort.
    * Para novos usos, prefira getSecondCopyPdf() que retorna BankPdfResult.
    */
@@ -563,30 +655,59 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
     try {
       const token = await this.getAuthToken();
 
-      // TODO: Ajustar rota conforme catálogo do Sicoob
-      // TODO: Verificar se é necessário passar contrato/cooperativa/beneficiário na rota ou headers
-      const pdfUrl = `/boletos/${nossoNumero}/pdf`; // Endpoint real pode variar
+      // Montar query params obrigatórios
+      const queryParams: Record<string, string> = {
+        numeroCliente: this.config.sicoobNumeroCliente,
+        codigoModalidade: this.config.sicoobCodigoModalidade,
+        nossoNumero,
+        gerarPdf: 'true',
+      };
 
-      const response = await this.api.get(pdfUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Request-ID': requestId,
-          // TODO: Adicionar headers exigidos conforme catálogo (ex: X-Cooperativa, X-Contrato)
-        },
-        responseType: 'arraybuffer',
-        httpsAgent: this.httpsAgent, // Usar mTLS se configurado
-      });
+      // Adicionar contrato se configurado
+      if (this.config.sicoobNumeroContratoCobranca) {
+        queryParams.numeroContratoCobranca = this.config.sicoobNumeroContratoCobranca;
+      }
 
-      const pdfBuffer = Buffer.from(response.data);
+      const response = await this.api.get<SicoobSegundaViaResponse>(
+        '/boletos/segunda-via',
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'client_id': this.config.sicoobClientId,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Request-ID': requestId,
+          },
+          params: queryParams,
+          httpsAgent: this.httpsAgent, // Usar mTLS se configurado
+        }
+      );
+
+      // Extrair pdfBoleto do resultado
+      const pdfBase64 = response.data?.resultado?.pdfBoleto;
+      
+      if (!pdfBase64) {
+        this.logger.warn({ 
+          requestId, 
+          nossoNumero
+        }, 'PDF não encontrado na resposta da segunda via');
+        throw new SicoobError(
+          'PDF não encontrado na resposta da segunda via',
+          SicoobErrorCode.SICOOB_BAD_REQUEST,
+          response.status
+        );
+      }
+
+      // Converter Base64 para Buffer
+      const pdfBuffer = Buffer.from(pdfBase64, 'base64');
 
       // Verificar se a resposta é realmente um PDF
       const isPdf = pdfBuffer.slice(0, 4).toString() === '%PDF';
       if (!isPdf) {
         this.logger.warn({ 
           requestId, 
-          nossoNumero,
-          contentType: response.headers['content-type']
-        }, 'Resposta não é um PDF válido');
+          nossoNumero
+        }, 'Dados Base64 não correspondem a um PDF válido');
         throw new SicoobError(
           'Resposta da API não é um PDF válido',
           SicoobErrorCode.SICOOB_BAD_REQUEST,
@@ -594,7 +715,7 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
         );
       }
 
-      this.logger.info({ requestId, nossoNumero, pdfSize: pdfBuffer.length }, 'PDF da 2ª via gerado');
+      this.logger.info({ requestId, nossoNumero, pdfSize: pdfBuffer.length }, 'PDF da 2ª via gerado (Base64 convertido)');
 
       return pdfBuffer;
     } catch (error) {
