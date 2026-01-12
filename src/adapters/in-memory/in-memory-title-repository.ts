@@ -86,14 +86,15 @@ export class InMemoryTitleRepository implements TitleRepository {
    * @param cpfHash Hash do CPF (SHA256 + pepper)
    * @returns Lista de títulos em aberto (status === 'OPEN')
    */
-  async findOpenTitlesByCpfHash(cpfHash: string): Promise<Title[]> {
+  async findOpenTitlesByCpfHash(_cpf: string, cpfHash: string): Promise<Title[]> {
+    // InMemory adapter usa apenas o hash (ignora CPF original)
     const allTitles = this.storage.get(cpfHash) || [];
     
     // Filtrar apenas títulos com status 'OPEN'
     const openTitles = allTitles.filter(title => title.status === 'OPEN');
     
     this.logger.debug(
-      { cpfHash, total: allTitles.length, open: openTitles.length },
+      { cpfHash: cpfHash.slice(0, 8) + '...', total: allTitles.length, open: openTitles.length },
       'Títulos encontrados no repositório em memória'
     );
     

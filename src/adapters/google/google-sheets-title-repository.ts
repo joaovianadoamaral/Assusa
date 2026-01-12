@@ -59,15 +59,16 @@ export class GoogleSheetsTitleRepository implements TitleRepository {
 
   /**
    * Busca títulos em aberto por hash do CPF
+   * @param _cpf CPF original (ignorado - Google Sheets usa apenas hash)
    * @param cpfHash Hash do CPF (SHA256 + pepper)
    * @returns Lista de títulos em aberto (status === 'OPEN')
    */
-  async findOpenTitlesByCpfHash(cpfHash: string): Promise<Title[]> {
+  async findOpenTitlesByCpfHash(_cpf: string, cpfHash: string): Promise<Title[]> {
     try {
       // Verificar cache
       const cached = this.cache.get(cpfHash);
       if (cached && Date.now() < cached.expiresAt) {
-        this.logger.debug({ cpfHash, count: cached.titles.length }, 'Títulos retornados do cache');
+        this.logger.debug({ cpfHash: cpfHash.slice(0, 8) + '...', count: cached.titles.length }, 'Títulos retornados do cache');
         return cached.titles;
       }
 
@@ -79,7 +80,7 @@ export class GoogleSheetsTitleRepository implements TitleRepository {
 
       if (!response.data.values || response.data.values.length < 2) {
         // Sem cabeçalho ou sem dados
-        this.logger.debug({ cpfHash }, 'Nenhum dado encontrado na planilha');
+        this.logger.debug({ cpfHash: cpfHash.slice(0, 8) + '...' }, 'Nenhum dado encontrado na planilha');
         this.updateCache(cpfHash, []);
         return [];
       }
@@ -118,19 +119,19 @@ export class GoogleSheetsTitleRepository implements TitleRepository {
       this.updateCache(cpfHash, titles);
 
       this.logger.debug(
-        { cpfHash, count: titles.length },
+        { cpfHash: cpfHash.slice(0, 8) + '...', count: titles.length },
         'Títulos encontrados no Google Sheets'
       );
 
       return titles;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro ao buscar títulos';
-      this.logger.error({ cpfHash, error: errorMessage }, 'Erro ao buscar títulos no Google Sheets');
+      this.logger.error({ cpfHash: cpfHash.slice(0, 8) + '...', error: errorMessage }, 'Erro ao buscar títulos no Google Sheets');
       
       // Em caso de erro, tentar retornar do cache se disponível
       const cached = this.cache.get(cpfHash);
       if (cached && Date.now() < cached.expiresAt) {
-        this.logger.warn({ cpfHash }, 'Erro ao buscar na planilha, retornando dados do cache');
+        this.logger.warn({ cpfHash: cpfHash.slice(0, 8) + '...' }, 'Erro ao buscar na planilha, retornando dados do cache');
         return cached.titles;
       }
       

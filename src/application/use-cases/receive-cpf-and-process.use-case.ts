@@ -62,8 +62,8 @@ export class ReceiveCpfAndProcessUseCase {
       return;
     }
 
-    // Buscar títulos
-    const titles = await this.titleRepository.findOpenTitlesByCpfHash(cpfHash);
+    // Buscar títulos usando CPF original (armazenado temporariamente apenas durante o fluxo)
+    const titles = await this.titleRepository.findOpenTitlesByCpfHash(cpfNormalized, cpfHash);
 
     if (titles.length === 0) {
       this.logger.info({ requestId, from, cpfMasked }, 'NO_TITLES: Nenhum título encontrado');
