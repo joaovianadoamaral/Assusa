@@ -1,24 +1,23 @@
 import { PdfService } from '../../application/ports/driven/pdf-service.port.js';
 import { PdfBuildFromBankPdfParams, PdfBuildFromDataParams } from '../../application/dtos/pdf-build-params.dto.js';
 import { Logger } from '../../application/ports/driven/logger-port.js';
+import PDFDocument from 'pdfkit';
+import { Buffer } from 'buffer';
 
 /**
  * Adapter: Serviço de PDF simples
  * 
- * Para buildFromBankPdf: retorna o buffer como está (sem processamento)
- * Para buildFromData: cria um PDF básico usando biblioteca de PDF
- * 
- * NOTA: Esta é uma implementação simplificada. Em produção, usar biblioteca apropriada
- * como pdfkit, pdf-lib, ou similar para gerar PDFs a partir de dados.
+ * Para buildFromBankPdf: retorna o buffer como está (já convertido de base64)
+ * Para buildFromData: cria um PDF básico usando pdfkit com os dados do boleto
  */
 export class SimplePdfServiceAdapter implements PdfService {
   constructor(private logger: Logger) {}
 
   async buildFromBankPdf(params: PdfBuildFromBankPdfParams): Promise<Buffer> {
     try {
-      // Por enquanto, retornar o buffer do PDF do banco como está
-      // Em produção, pode ser necessário processar/validar o PDF
-      this.logger.debug({ filename: params.filename }, 'PDF processado (buffer original)');
+      // O PDF do banco já vem convertido de base64 para Buffer no adapter do Sicoob
+      // Apenas retornar o buffer como está
+      this.logger.debug({ filename: params.filename }, 'PDF processado (buffer original do banco)');
       
       return params.bankPdfBuffer;
     } catch (error) {
@@ -30,13 +29,107 @@ export class SimplePdfServiceAdapter implements PdfService {
 
   async buildFromData(params: PdfBuildFromDataParams): Promise<Buffer> {
     try {
-      // Por enquanto, retornar um buffer vazio
-      // Em produção, usar biblioteca de PDF para gerar PDF a partir dos dados
-      this.logger.debug({ filename: params.filename }, 'PDF gerado a partir de dados (placeholder)');
+      const { data } = params;
       
-      // TODO: Implementar geração de PDF usando pdfkit, pdf-lib ou similar
-      // Por enquanto, retornar buffer vazio como placeholder
-      return Buffer.from('');
+      // Criar novo documento PDF
+      const doc = new PDFDocument({
+        size: 'A4',
+        margins: {
+          top: 50,
+          bottom: 50,
+          left: 50,
+          right: 50,
+        },
+      });
+
+      // Buffer para armazenar o PDF gerado
+      const chunks: Buffer[] = [];
+      
+      // Registrar eventos ANTES de começar a escrever
+      doc.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+
+      // Promessa para aguardar finalização do PDF
+      const pdfPromise = new Promise<void>((resolve, reject) => {
+        doc.on('end', () => {
+          resolve();
+        });
+        doc.on('error', (error: Error) => {
+          reject(error);
+        });
+      });
+        
+      // Conteúdo do PDF
+      doc.fontSize(20).text('2ª Via de Boleto', { align: 'center' });
+      doc.moveDown(2);
+
+      // Informações do boleto
+      doc.fontSize(12);
+      doc.text(`Nosso Número: ${data.nossoNumero}`);
+      doc.moveDown();
+      
+      if (data.valor) {
+        const valorFormatado = new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        }).format(data.valor);
+        doc.text(`Valor: ${valorFormatado}`);
+        doc.moveDown();
+      }
+
+      if (data.vencimento) {
+        const vencimentoFormatado = data.vencimento.toLocaleDateString('pt-BR');
+        doc.text(`Vencimento: ${vencimentoFormatado}`);
+        doc.moveDown();
+      }
+
+      if (data.beneficiario) {
+        doc.text(`Beneficiário: ${data.beneficiario}`);
+        doc.moveDown();
+      }
+
+      if (data.pagador) {
+        doc.text(`Pagador: ${data.pagador}`);
+        doc.moveDown();
+      }
+
+      doc.moveDown(2);
+
+      // Linha digitável
+      if (data.linhaDigitavel) {
+        doc.fontSize(14).font('Courier');
+        doc.text('Linha Digitável:', { align: 'left' });
+        doc.moveDown(0.5);
+        doc.text(data.linhaDigitavel, { align: 'center' });
+        doc.moveDown();
+      }
+
+      // Código de barras (se disponível)
+      if (data.codigoBarras) {
+        doc.fontSize(12).font('Courier');
+        doc.moveDown();
+        doc.text('Código de Barras:', { align: 'left' });
+        doc.moveDown(0.5);
+        doc.text(data.codigoBarras, { align: 'center' });
+      }
+
+      // Finalizar PDF (deve ser chamado por último)
+      doc.end();
+
+      // Aguardar finalização do PDF
+      await pdfPromise;
+
+      // Concatenar chunks em um único buffer
+      const pdfBuffer = Buffer.concat(chunks);
+
+      this.logger.debug({ 
+        filename: params.filename,
+        size: pdfBuffer.length,
+        nossoNumero: data.nossoNumero 
+      }, 'PDF gerado a partir de dados');
+
+      return pdfBuffer;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar PDF';
       this.logger.error({ error: errorMessage }, 'Erro ao gerar PDF a partir de dados');
