@@ -466,6 +466,53 @@ describe('SicoobBankProviderAdapter', () => {
 
       expect(result).toBeNull();
     });
+
+    it('NÃO deve enviar headers X-Cooperativa, X-Contrato ou X-Beneficiario', async () => {
+      const title: Title = {
+        id: 'test-id',
+        nossoNumero: '123456',
+      };
+
+      const mockTokenResponse = {
+        data: {
+          access_token: 'test-access-token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        },
+      };
+
+      const pdfContent = '%PDF-test-content';
+      const pdfBase64 = Buffer.from(pdfContent).toString('base64');
+
+      const mockSegundaViaResponse = {
+        data: {
+          resultado: {
+            nossoNumero: '123456',
+            pdfBoleto: pdfBase64,
+          },
+        },
+        status: 200,
+      };
+
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockSegundaViaResponse);
+
+      await adapter.getSecondCopyPdf(title);
+
+      // Verificar que os headers X-* NÃO foram enviados
+      const callArgs = vi.mocked(mockAxiosInstance.get).mock.calls[0];
+      const headers = callArgs[1]?.headers as Record<string, string>;
+
+      expect(headers).not.toHaveProperty('X-Cooperativa');
+      expect(headers).not.toHaveProperty('X-Contrato');
+      expect(headers).not.toHaveProperty('X-Beneficiario');
+      expect(headers).not.toHaveProperty('X-Beneficiário');
+
+      // Verificar que os headers obrigatórios foram enviados
+      expect(headers).toHaveProperty('Authorization', 'Bearer test-access-token');
+      expect(headers).toHaveProperty('client_id', 'test-client-id');
+      expect(headers).toHaveProperty('Accept', 'application/json');
+    });
   });
 
   describe('getSecondCopyData', () => {
@@ -581,6 +628,53 @@ describe('SicoobBankProviderAdapter', () => {
       const result = await adapter.getSecondCopyData(title);
 
       expect(result).toBeNull();
+    });
+
+    it('NÃO deve enviar headers X-Cooperativa, X-Contrato ou X-Beneficiario', async () => {
+      const title: Title = {
+        id: 'test-id',
+        nossoNumero: '123456',
+      };
+
+      const mockTokenResponse = {
+        data: {
+          access_token: 'test-access-token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        },
+      };
+
+      const mockSegundaViaResponse = {
+        data: {
+          resultado: {
+            nossoNumero: '123456',
+            linhaDigitavel: '12345.67890 12345.678901 12345.678901 1 23456789012345',
+            codigoBarras: '12345678901234567890123456789012345678901234',
+            valor: 100.50,
+            dataVencimento: '2024-12-31',
+          },
+        },
+        status: 200,
+      };
+
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockSegundaViaResponse);
+
+      await adapter.getSecondCopyData(title);
+
+      // Verificar que os headers X-* NÃO foram enviados
+      const callArgs = vi.mocked(mockAxiosInstance.get).mock.calls[0];
+      const headers = callArgs[1]?.headers as Record<string, string>;
+
+      expect(headers).not.toHaveProperty('X-Cooperativa');
+      expect(headers).not.toHaveProperty('X-Contrato');
+      expect(headers).not.toHaveProperty('X-Beneficiario');
+      expect(headers).not.toHaveProperty('X-Beneficiário');
+
+      // Verificar que os headers obrigatórios foram enviados
+      expect(headers).toHaveProperty('Authorization', 'Bearer test-access-token');
+      expect(headers).toHaveProperty('client_id', 'test-client-id');
+      expect(headers).toHaveProperty('Accept', 'application/json');
     });
   });
 
