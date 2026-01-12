@@ -135,15 +135,16 @@ assusa/
 - **Impacto**: Pode causar erros 400/403 se headers obrigatórios estiverem faltando
 
 #### 1.2. Método `buscarBoletosPorCPF()`
-- **Status**: ⚠️ Não implementado (lança erro informativo)
-- **Problema**: API do Sicoob requer CPF original, mas sistema trabalha com hash
-- **Soluções possíveis**:
-  1. Buscar todos os boletos e filtrar (não recomendado para produção)
-  2. Tabela de mapeamento hash → CPF (viola LGPD se não for seguro)
-  3. Usar outra abordagem conforme documentação da API
-- **Impacto**: Funcionalidade de busca por CPF não está disponível
+- **Status**: ✅ **IMPLEMENTADO**
+- **Solução**: Método implementado para receber CPF original diretamente do fluxo
+- **Implementação**: 
+  - Interface atualizada para receber CPF original
+  - Use case passa CPF original (recebido via webhook do WhatsApp)
+  - Adapter implementa busca usando GET `/pagadores/{cpf}/boletos`
+  - Compliance LGPD mantido (CPF não persistido permanentemente)
+- **Impacto**: Funcionalidade de busca por CPF está disponível
 
-**Ação**: Validar com Sicoob durante homologação e ajustar conforme necessário.
+**Ação**: Pronto para testes de homologação com Sicoob.
 
 ---
 

@@ -37,23 +37,22 @@ Este arquivo lista todas as pendências e ajustes necessários do projeto.
 
 ### 2. Implementação buscarBoletosPorCPF
 
-**Status**: ⚠️ **PENDENTE** - Requer estratégia para hash→CPF
+**Status**: ✅ **CONCLUÍDO**
 
 **Arquivo**: `src/adapters/sicoob/sicoob-bank-provider-adapter.ts`
 
-#### 2.1. Busca por CPF Hash
-- [ ] **PENDÊNCIA**: Implementar estratégia para obter CPF original a partir do hash
-- **Localização**: Método `buscarBoletosPorCPF()` (linha ~543)
-- **Problema**: A API do Sicoob requer CPF original, não hash. Método atualmente lança erro informativo.
-- **Notas no código**:
-  - "A API do Sicoob provavelmente não aceita hash de CPF diretamente"
-  - "Seria necessário ter um sistema intermediário ou usar outra abordagem"
-- **Ações possíveis**:
-  1. Buscar todos os boletos e filtrar (não recomendado para produção)
-  2. Criar tabela de mapeamento hash → CPF (viola LGPD se não for seguro)
-  3. Usar outra abordagem conforme documentação da API
-- **Código comentado**: Rota `/pagadores/{cpfCnpj}/boletos` está documentada no código (linha ~561)
-- **Ação**: Definir estratégia e implementar conforme documentação real
+#### 2.1. Busca por CPF
+- [x] **IMPLEMENTADO**: Método `buscarBoletosPorCPF()` implementado
+- **Localização**: Método `buscarBoletosPorCPF()` (linha ~586)
+- **Solução**: O método agora recebe CPF original diretamente do fluxo (via webhook do WhatsApp)
+- **Implementação**: 
+  - Interface `SicoobPort` atualizada para receber CPF original
+  - Interface `TitleRepository` atualizada para receber CPF original + hash
+  - Use case `ReceiveCpfAndProcessUseCase` passa CPF original + hash
+  - Adapter `SicoobBankProviderAdapter` implementa busca usando GET `/pagadores/{cpf}/boletos`
+  - Adapter `SicoobTitleRepositoryAdapter` atualizado para usar CPF original
+  - Adaptadores de teste (`InMemoryTitleRepository`, `GoogleSheetsTitleRepository`) atualizados
+- **Compliance LGPD**: CPF original usado apenas durante o fluxo (não persistido permanentemente)
 
 ---
 
