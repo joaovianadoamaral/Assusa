@@ -1,4 +1,4 @@
-import { sanitizeForLogs, hashCpf as lgpdHashCpf } from '../../domain/helpers/lgpd-helpers.js';
+import { hashCpf as lgpdHashCpf } from '../../domain/helpers/lgpd-helpers.js';
 
 export class CpfHandler {
   /**
@@ -80,16 +80,6 @@ export class CpfHandler {
     return true;
   }
 
-  /**
-   * Sanitiza string removendo/mascarando CPFs para logs
-   * Usa a função centralizada sanitizeForLogs para garantir consistência
-   * @deprecated Use sanitizeForLogs diretamente para objetos. Este método é mantido para compatibilidade.
-   */
-  static sanitizeForLog(text: string): string {
-    // Usa a função centralizada para garantir consistência na sanitização
-    const sanitized = sanitizeForLogs({ message: text });
-    return (sanitized.message as string) || text;
-  }
 
   /**
    * Gera nome de arquivo seguro (sem CPF puro, a menos que permitido)
