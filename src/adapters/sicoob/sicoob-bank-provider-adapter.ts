@@ -3,7 +3,9 @@ import https from 'https';
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import { BankProvider } from '../../application/ports/driven/bank-provider.port.js';
+import { SicoobPort } from '../../application/ports/driven/sicoob-port.js';
 import { Title } from '../../domain/entities/title.js';
+import { BoletoSicoob } from '../../domain/entities/boleto.js';
 import { BankPdfResult } from '../../application/dtos/bank-pdf-result.dto.js';
 import { BankDataResult } from '../../application/dtos/bank-data-result.dto.js';
 import { Logger } from '../../application/ports/driven/logger-port.js';
@@ -60,13 +62,15 @@ interface SicoobBoletoResponse {
 /**
  * Adapter: Provedor de Banco usando Sicoob
  * 
- * Implementa BankProvider usando a API do Sicoob com:
+ * Implementa BankProvider e SicoobPort usando a API do Sicoob com:
  * - Autenticação OAuth2 com client credentials
  * - mTLS usando certificado PFX
  * - Token caching com expiração antecipada (-60s)
  * - Mapeamento de erros para códigos internos
+ * 
+ * Consolida toda a lógica de integração com Sicoob em um único adapter.
  */
-export class SicoobBankProviderAdapter implements BankProvider {
+export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
   private api: AxiosInstance;
   private authToken?: string;
   private tokenExpiresAt?: Date;
@@ -479,6 +483,141 @@ export class SicoobBankProviderAdapter implements BankProvider {
       const errorMessage = error instanceof Error ? error.message : 'Erro ao obter dados';
       throw new SicoobError(
         `Falha ao obter dados do boleto: ${errorMessage}`,
+        errorCode,
+        statusCode
+      );
+    }
+  }
+
+  /**
+   * Busca boletos por CPF hash (implementação de SicoobPort)
+   * 
+   * TODO: Ajustar rota conforme catálogo do Sicoob
+   * Nota: A API do Sicoob normalmente busca por CPF diretamente.
+   * Como estamos usando hash, pode ser necessário adaptar a estratégia.
+   */
+  async buscarBoletosPorCPF(cpfHash: string, requestId: string): Promise<BoletoSicoob[]> {
+    try {
+      const token = await this.getAuthToken();
+
+      // TODO: Ajustar rota conforme catálogo do Sicoob
+      // TODO: Verificar se é necessário passar contrato/cooperativa/beneficiário na rota ou headers
+      // Nota: A API real do Sicoob provavelmente não aceita hash de CPF diretamente
+      // Seria necessário ter um sistema intermediário ou usar outra abordagem
+      const response = await this.api.get<SicoobBoletoResponse[]>(
+        '/boletos', // Endpoint real pode variar
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-Request-ID': requestId,
+            // TODO: Adicionar headers exigidos conforme catálogo (ex: X-Cooperativa, X-Contrato)
+          },
+          params: {
+            // Adaptar conforme documentação real da API
+            cpfHash, // Isso provavelmente não funcionará diretamente - é um exemplo
+          },
+          httpsAgent: this.httpsAgent, // Usar mTLS se configurado
+        }
+      );
+
+      const boletos: BoletoSicoob[] = response.data.map(boleto => ({
+        nossoNumero: boleto.nossoNumero,
+        numeroDocumento: boleto.numeroDocumento || '',
+        valor: boleto.valor,
+        vencimento: boleto.dataVencimento || '',
+        situacao: boleto.situacao || '',
+      }));
+
+      this.logger.info({ requestId, count: boletos.length }, 'Boletos encontrados no Sicoob');
+
+      return boletos;
+    } catch (error) {
+      const errorCode = this.mapErrorToCode(error);
+      const statusCode = this.getStatusCode(error);
+      
+      // Não logar payload bruto do banco (conforme regras LGPD)
+      this.logger.error({ 
+        requestId, 
+        cpfHash: cpfHash.slice(0, 8) + '...', // Log apenas hash parcial
+        code: errorCode,
+        statusCode,
+      }, 'Erro ao buscar boletos no Sicoob');
+
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao buscar boletos';
+      throw new SicoobError(
+        `Falha ao buscar boletos: ${errorMessage}`,
+        errorCode,
+        statusCode
+      );
+    }
+  }
+
+  /**
+   * Gera segunda via de boleto (implementação de SicoobPort)
+   * 
+   * TODO: Ajustar rota conforme catálogo do Sicoob
+   * Este método é mantido para compatibilidade com SicoobPort.
+   * Para novos usos, prefira getSecondCopyPdf() que retorna BankPdfResult.
+   */
+  async gerarSegundaVia(nossoNumero: string, _cpfHash: string, requestId: string): Promise<Buffer> {
+    try {
+      const token = await this.getAuthToken();
+
+      // TODO: Ajustar rota conforme catálogo do Sicoob
+      // TODO: Verificar se é necessário passar contrato/cooperativa/beneficiário na rota ou headers
+      const pdfUrl = `/boletos/${nossoNumero}/pdf`; // Endpoint real pode variar
+
+      const response = await this.api.get(pdfUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Request-ID': requestId,
+          // TODO: Adicionar headers exigidos conforme catálogo (ex: X-Cooperativa, X-Contrato)
+        },
+        responseType: 'arraybuffer',
+        httpsAgent: this.httpsAgent, // Usar mTLS se configurado
+      });
+
+      const pdfBuffer = Buffer.from(response.data);
+
+      // Verificar se a resposta é realmente um PDF
+      const isPdf = pdfBuffer.slice(0, 4).toString() === '%PDF';
+      if (!isPdf) {
+        this.logger.warn({ 
+          requestId, 
+          nossoNumero,
+          contentType: response.headers['content-type']
+        }, 'Resposta não é um PDF válido');
+        throw new SicoobError(
+          'Resposta da API não é um PDF válido',
+          SicoobErrorCode.SICOOB_BAD_REQUEST,
+          response.status
+        );
+      }
+
+      this.logger.info({ requestId, nossoNumero, pdfSize: pdfBuffer.length }, 'PDF da 2ª via gerado');
+
+      return pdfBuffer;
+    } catch (error) {
+      const errorCode = this.mapErrorToCode(error);
+      const statusCode = this.getStatusCode(error);
+      
+      // Não logar payload bruto do banco (conforme regras LGPD)
+      this.logger.error({ 
+        requestId, 
+        nossoNumero, 
+        code: errorCode,
+        statusCode,
+      }, 'Erro ao gerar PDF da 2ª via');
+
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar 2ª via';
+      
+      // Se for SicoobError, relançar
+      if (error instanceof SicoobError) {
+        throw error;
+      }
+      
+      throw new SicoobError(
+        `Falha ao gerar 2ª via: ${errorMessage}`,
         errorCode,
         statusCode
       );
