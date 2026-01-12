@@ -18,6 +18,19 @@ npm install
 
 ### 2. Configurar Variáveis de Ambiente
 
+**Opção A: Usar script de setup automático (recomendado)**
+
+```bash
+# No Windows (PowerShell)
+.\setup.ps1
+
+# No Linux/Mac
+chmod +x setup.sh
+./setup.sh
+```
+
+**Opção B: Configuração manual**
+
 Copie o arquivo `.env.example` para `.env`:
 
 ```bash
