@@ -1,18 +1,19 @@
+import { FlowType } from '../../domain/enums/flow-type.js';
 import { ConversationStateStore } from '../../application/ports/driven/conversation-state-store.js';
 import { WhatsAppPort } from '../../application/ports/driven/whatsapp-port.js';
 import { Logger } from '../../application/ports/driven/logger-port.js';
 import { Title } from '../../domain/entities/title.js';
-import { GenerateSecondCopyUseCase } from './generate-second-copy.use-case.js';
 
 /**
- * Use Case: Selecionar título e processar
- * - Valida índice, pega title selecionado do estado, chama GenerateSecondCopy
+ * Use Case: Selecionar título e mostrar menu de formato
+ * - Valida índice, pega title selecionado do estado
+ * - Mostra menu para escolher formato (PDF, código de barras, linha digitável)
+ * - Atualiza estado para WAITING_FORMAT_SELECTION
  */
 export class SelectTitleAndProcessUseCase {
   constructor(
     private conversationState: ConversationStateStore,
     private whatsapp: WhatsAppPort,
-    private generateSecondCopy: GenerateSecondCopyUseCase,
     private logger: Logger
   ) {}
 
@@ -61,25 +62,39 @@ export class SelectTitleAndProcessUseCase {
     const cpfHash = state.data.cpfHash as string;
     const cpfMasked = state.data.cpfMasked as string;
 
-    // Reconstruir objeto Title
-    const selectedTitle: Title = {
-      id: selectedTitleData.id,
-      nossoNumero: selectedTitleData.nossoNumero,
-      valor: selectedTitleData.valor,
-      vencimento: selectedTitleData.vencimento ? new Date(selectedTitleData.vencimento) : undefined,
-    };
-
     this.logger.info({ 
       requestId, 
       from, 
       cpfMasked, 
-      nossoNumero: selectedTitle.nossoNumero 
-    }, 'Título selecionado para processamento');
+      nossoNumero: selectedTitleData.nossoNumero 
+    }, 'Título selecionado, mostrando menu de formato');
 
-    // Processar geração de segunda via
-    await this.generateSecondCopy.execute(from, cpfHash, cpfMasked, selectedTitle, requestId);
+    // Mostrar menu de formato
+    const formatMenu = `📋 *Escolha o formato da 2ª via:*\n\n` +
+      `[1] 📄 PDF\n` +
+      `[2] 📊 Código de barras\n` +
+      `[3] 🔢 Linha digitável\n` +
+      `[0] ⬅️ Voltar\n\n` +
+      `Digite o número da opção desejada:`;
 
-    // Limpar estado após processamento
-    await this.conversationState.clear(from);
+    await this.whatsapp.sendTextMessage(from, formatMenu, requestId);
+
+    // Atualizar estado: step=WAITING_FORMAT_SELECTION, salvar título selecionado e manter títulos para voltar
+    await this.conversationState.set(from, {
+      activeFlow: FlowType.SECOND_COPY,
+      step: 'WAITING_FORMAT_SELECTION',
+      data: {
+        cpfHash,
+        cpfMasked,
+        titles, // Manter títulos para permitir voltar
+        selectedTitle: {
+          id: selectedTitleData.id,
+          nossoNumero: selectedTitleData.nossoNumero,
+          valor: selectedTitleData.valor,
+          vencimento: selectedTitleData.vencimento,
+        },
+      },
+      updatedAt: new Date(),
+    });
   }
 }

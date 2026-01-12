@@ -5,7 +5,6 @@ import { TitleRepository } from '../../application/ports/driven/title-repository
 import { RateLimiter } from '../../application/ports/driven/rate-limiter.js';
 import { Logger } from '../../application/ports/driven/logger-port.js';
 import { CpfHandler } from '../../infrastructure/security/cpf-handler.js';
-import { GenerateSecondCopyUseCase } from './generate-second-copy.use-case.js';
 import { Config } from '../../infrastructure/config/config.js';
 
 /**
@@ -24,7 +23,6 @@ export class ReceiveCpfAndProcessUseCase {
     private whatsapp: WhatsAppPort,
     private titleRepository: TitleRepository,
     private rateLimiter: RateLimiter,
-    private generateSecondCopy: GenerateSecondCopyUseCase,
     private logger: Logger,
     private config: Config
   ) {}
@@ -79,12 +77,44 @@ export class ReceiveCpfAndProcessUseCase {
       return;
     }
 
+    // Sempre mostrar menu de formato (mesmo com 1 título)
+    // Se houver apenas 1 título, mostrar menu de formato diretamente
     if (titles.length === 1) {
-      // Processar diretamente
       const title = titles[0];
-      await this.generateSecondCopy.execute(from, cpfHash, cpfMasked, title, requestId);
-      // Limpar estado após processamento
-      await this.conversationState.clear(from);
+      
+      // Mostrar menu de formato
+      const formatMenu = `📋 *Escolha o formato da 2ª via:*\n\n` +
+        `[1] 📄 PDF\n` +
+        `[2] 📊 Código de barras\n` +
+        `[3] 🔢 Linha digitável\n\n` +
+        `Digite o número da opção desejada:`;
+
+      await this.whatsapp.sendTextMessage(from, formatMenu, requestId);
+
+      // Atualizar estado: step=WAITING_FORMAT_SELECTION, salvar título selecionado
+      await this.conversationState.set(from, {
+        activeFlow: FlowType.SECOND_COPY,
+        step: 'WAITING_FORMAT_SELECTION',
+        data: {
+          cpfHash,
+          cpfMasked,
+          titles: titles.map(t => ({
+            id: t.id,
+            nossoNumero: t.nossoNumero,
+            valor: t.valor,
+            vencimento: t.vencimento?.toISOString(),
+          })),
+          selectedTitle: {
+            id: title.id,
+            nossoNumero: title.nossoNumero,
+            valor: title.valor,
+            vencimento: title.vencimento?.toISOString(),
+          },
+        },
+        updatedAt: new Date(),
+      });
+
+      this.logger.info({ requestId, from, cpfMasked, nossoNumero: title.nossoNumero }, 'Título único encontrado, mostrando menu de formato');
       return;
     }
 
