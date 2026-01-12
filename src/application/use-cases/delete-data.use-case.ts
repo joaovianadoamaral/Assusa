@@ -57,7 +57,7 @@ export class DeleteDataUseCase {
       `Esta ação foi registrada em nosso sistema para fins de auditoria e conformidade com a LGPD.\n\n` +
       `Obrigado por utilizar nossos serviços!`;
 
-    await this.whatsapp.sendTextMessage(from, confirmationText, requestId);
+    await this.whatsapp.sendText(from, confirmationText, requestId);
 
     this.logger.info({ requestId, from, deletedFilesCount: driveFileIds?.length || 0 }, 'Exclusão de dados concluída');
   }

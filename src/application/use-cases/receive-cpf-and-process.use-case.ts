@@ -30,7 +30,7 @@ export class ReceiveCpfAndProcessUseCase {
   async execute(from: string, cpfInput: string, requestId: string): Promise<void> {
     // Validar CPF
     if (!CpfHandler.isValidCpf(cpfInput)) {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ CPF inválido. Por favor, digite um CPF válido (apenas números ou com formatação):',
         requestId
@@ -53,7 +53,7 @@ export class ReceiveCpfAndProcessUseCase {
     );
 
     if (!rateLimitResult.allowed) {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '⏱️ Você excedeu o limite de requisições. Por favor, tente novamente mais tarde.',
         requestId
@@ -67,7 +67,7 @@ export class ReceiveCpfAndProcessUseCase {
 
     if (titles.length === 0) {
       this.logger.info({ requestId, from, cpfMasked }, 'NO_TITLES: Nenhum título encontrado');
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Nenhum boleto em aberto encontrado para este CPF. Verifique o CPF informado e tente novamente.',
         requestId
@@ -89,7 +89,7 @@ export class ReceiveCpfAndProcessUseCase {
         `[3] 🔢 Linha digitável\n\n` +
         `Digite o número da opção desejada:`;
 
-      await this.whatsapp.sendTextMessage(from, formatMenu, requestId);
+      await this.whatsapp.sendText(from, formatMenu, requestId);
 
       // Atualizar estado: step=WAITING_FORMAT_SELECTION, salvar título selecionado
       await this.conversationState.set(from, {
@@ -131,7 +131,7 @@ export class ReceiveCpfAndProcessUseCase {
       }).join('\n') +
       `\n\nDigite o número da opção desejada:`;
 
-    await this.whatsapp.sendTextMessage(from, optionsText, requestId);
+    await this.whatsapp.sendText(from, optionsText, requestId);
 
     // Atualizar estado: step=WAITING_SELECTION, salvar títulos no estado
     await this.conversationState.set(from, {

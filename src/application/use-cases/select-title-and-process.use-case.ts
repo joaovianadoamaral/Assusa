@@ -21,7 +21,7 @@ export class SelectTitleAndProcessUseCase {
     const state = await this.conversationState.get(from);
 
     if (!state || state.step !== 'WAITING_SELECTION') {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Erro: Estado da conversa inválido. Por favor, inicie novamente o fluxo de segunda via.',
         requestId
@@ -37,7 +37,7 @@ export class SelectTitleAndProcessUseCase {
     }>;
 
     if (!titles || !Array.isArray(titles)) {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Erro: Dados de títulos não encontrados. Por favor, inicie novamente o fluxo.',
         requestId
@@ -49,7 +49,7 @@ export class SelectTitleAndProcessUseCase {
     // Validar índice (1-based para o usuário, 0-based internamente)
     const index = selectionIndex - 1;
     if (index < 0 || index >= titles.length) {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         `❌ Opção inválida. Por favor, escolha um número entre 1 e ${titles.length}:`,
         requestId
@@ -76,7 +76,7 @@ export class SelectTitleAndProcessUseCase {
       `[0] ⬅️ Voltar\n\n` +
       `Digite o número da opção desejada:`;
 
-    await this.whatsapp.sendTextMessage(from, formatMenu, requestId);
+    await this.whatsapp.sendText(from, formatMenu, requestId);
 
     // Atualizar estado: step=WAITING_FORMAT_SELECTION, salvar título selecionado e manter títulos para voltar
     await this.conversationState.set(from, {

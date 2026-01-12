@@ -20,7 +20,7 @@ export class ShowMenuUseCase {
       `5️⃣ - Ajuda/Menu\n\n` +
       `Digite o número ou emoji da opção desejada.`;
 
-    await this.whatsapp.sendTextMessage(from, menuText, requestId);
+    await this.whatsapp.sendText(from, menuText, requestId);
     
     this.logger.info({ requestId, from }, 'Menu exibido');
   }

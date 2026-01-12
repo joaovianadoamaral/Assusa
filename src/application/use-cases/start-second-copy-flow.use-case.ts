@@ -23,7 +23,7 @@ export class StartSecondCopyFlowUseCase {
       `O CPF será armazenado de forma segura usando criptografia hash.\n\n` +
       `Por favor, digite seu CPF (apenas números ou com formatação):`;
 
-    await this.whatsapp.sendTextMessage(from, lgpdText, requestId);
+    await this.whatsapp.sendText(from, lgpdText, requestId);
 
     // Salvar estado: activeFlow=SECOND_COPY, step=WAITING_CPF
     await this.conversationState.set(from, {

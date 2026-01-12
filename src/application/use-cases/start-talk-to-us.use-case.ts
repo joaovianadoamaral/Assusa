@@ -20,7 +20,7 @@ export class StartTalkToUsUseCase {
       `Por favor, envie uma mensagem curta descrevendo como podemos ajudá-lo:\n\n` +
       `(Máximo de 500 caracteres)`;
 
-    await this.whatsapp.sendTextMessage(from, messageText, requestId);
+    await this.whatsapp.sendText(from, messageText, requestId);
 
     // Salvar estado: step=WAITING_MESSAGE
     await this.conversationState.set(from, {

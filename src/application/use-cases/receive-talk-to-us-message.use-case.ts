@@ -19,7 +19,7 @@ export class ReceiveTalkToUsMessageUseCase {
   async execute(from: string, message: string, requestId: string): Promise<void> {
     // Validar tamanho da mensagem
     if (message.length > 500) {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Mensagem muito longa. Por favor, envie uma mensagem com no máximo 500 caracteres:',
         requestId
@@ -40,7 +40,7 @@ export class ReceiveTalkToUsMessageUseCase {
       `Nossa equipe entrará em contato em breve.\n\n` +
       `Obrigado por entrar em contato conosco!`;
 
-    await this.whatsapp.sendTextMessage(from, confirmationText, requestId);
+    await this.whatsapp.sendText(from, confirmationText, requestId);
 
     // Limpar estado
     await this.conversationState.clear(from);

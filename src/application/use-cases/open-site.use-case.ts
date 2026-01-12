@@ -44,7 +44,7 @@ export class OpenSiteUseCase {
       `${linkResult.url}\n\n` +
       `Lá você encontrará mais informações sobre nossos produtos e serviços.`;
 
-    await this.whatsapp.sendTextMessage(from, responseText, requestId);
+    await this.whatsapp.sendText(from, responseText, requestId);
 
     // NÃO limpar estado - manter fluxo em andamento se existir
     this.logger.info({ 

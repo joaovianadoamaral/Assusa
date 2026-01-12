@@ -36,7 +36,7 @@ export class ProcessFormatSelectionUseCase {
     const state = await this.conversationState.get(from);
 
     if (!state || state.step !== 'WAITING_FORMAT_SELECTION') {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Erro: Estado da conversa inválido. Por favor, inicie novamente o fluxo de segunda via.',
         requestId
@@ -66,7 +66,7 @@ export class ProcessFormatSelectionUseCase {
           }).join('\n') +
           `\n\nDigite o número da opção desejada:`;
 
-        await this.whatsapp.sendTextMessage(from, optionsText, requestId);
+        await this.whatsapp.sendText(from, optionsText, requestId);
 
         await this.conversationState.set(from, {
           activeFlow: FlowType.SECOND_COPY,
@@ -93,7 +93,7 @@ export class ProcessFormatSelectionUseCase {
     } else if (formatIndex === 3) {
       format = 'LINHA_DIGITAVEL';
     } else {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Opção inválida. Por favor, escolha 1 (PDF), 2 (Código de barras), 3 (Linha digitável) ou 0 (Voltar):',
         requestId
@@ -109,7 +109,7 @@ export class ProcessFormatSelectionUseCase {
     };
 
     if (!selectedTitleData) {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Erro: Título não encontrado. Por favor, inicie novamente o fluxo.',
         requestId
@@ -156,7 +156,7 @@ export class ProcessFormatSelectionUseCase {
         error: errorMessage 
       }, 'Erro ao processar escolha de formato');
 
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Erro ao processar sua solicitação. Por favor, tente novamente ou entre em contato conosco.',
         requestId
@@ -185,7 +185,7 @@ export class ProcessFormatSelectionUseCase {
       const bankDataResult = await this.bankProvider.getSecondCopyData(title);
       
       if (!bankDataResult) {
-        await this.whatsapp.sendTextMessage(
+        await this.whatsapp.sendText(
           from,
           '❌ Não foi possível gerar o PDF agora. Tente novamente ou escolha linha digitável/código de barras.',
           requestId
@@ -194,7 +194,7 @@ export class ProcessFormatSelectionUseCase {
       }
 
       // Se não tiver PDF, informar que precisa usar outro formato
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Não foi possível gerar o PDF agora. Tente novamente ou escolha linha digitável/código de barras.',
         requestId
@@ -246,7 +246,7 @@ export class ProcessFormatSelectionUseCase {
       tipoSolicitacao: 'segunda_via_pdf',
     });
 
-    await this.whatsapp.sendTextMessage(
+    await this.whatsapp.sendText(
       from,
       '✅ PDF da 2ª via enviado com sucesso!',
       requestId
@@ -267,7 +267,7 @@ export class ProcessFormatSelectionUseCase {
     const bankDataResult = await this.bankProvider.getSecondCopyData(title);
 
     if (!bankDataResult) {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Não foi possível obter os dados do boleto. Tente novamente.',
         requestId
@@ -280,7 +280,7 @@ export class ProcessFormatSelectionUseCase {
     const codigoBarras = bankDataResult.codigoBarras || '';
 
     if (!codigoBarras) {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Código de barras não disponível para este boleto. Tente escolher linha digitável.',
         requestId
@@ -289,7 +289,7 @@ export class ProcessFormatSelectionUseCase {
     }
 
     // Enviar código de barras (sem formatação que atrapalhe copiar)
-    await this.whatsapp.sendTextMessage(
+    await this.whatsapp.sendText(
       from,
       `📊 *Código de barras do boleto:*\n\n\`\`\`\n${codigoBarras}\n\`\`\`\n\nCopie o código acima para pagar.`,
       requestId
@@ -322,7 +322,7 @@ export class ProcessFormatSelectionUseCase {
     const bankDataResult = await this.bankProvider.getSecondCopyData(title);
 
     if (!bankDataResult) {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Não foi possível obter os dados do boleto. Tente novamente.',
         requestId
@@ -333,7 +333,7 @@ export class ProcessFormatSelectionUseCase {
     const linhaDigitavel = bankDataResult.linhaDigitavel || '';
 
     if (!linhaDigitavel) {
-      await this.whatsapp.sendTextMessage(
+      await this.whatsapp.sendText(
         from,
         '❌ Linha digitável não disponível para este boleto.',
         requestId
@@ -342,7 +342,7 @@ export class ProcessFormatSelectionUseCase {
     }
 
     // Enviar linha digitável com instrução
-    await this.whatsapp.sendTextMessage(
+    await this.whatsapp.sendText(
       from,
       `🔢 *Linha digitável do boleto:*\n\n\`\`\`\n${linhaDigitavel}\n\`\`\`\n\nCopie e cole no app do seu banco para pagar.`,
       requestId
