@@ -37,18 +37,47 @@ O projeto segue a **Clean Architecture** (Ports & Adapters), dividida em camadas
 
 ```
 src/
-├── domain/          # Regras de negócio puras (entities, ports, use-cases)
-├── application/     # Casos de uso e orquestração
-├── adapters/        # Implementações concretas (WhatsApp, Sicoob, Google, Redis)
+├── domain/          # Regras de negócio puras (entities, value-objects, use-cases, ports)
+├── application/     # Serviços, use-cases e ports de integrações externas
+├── adapters/        # Implementações concretas (WhatsApp, Sicoob, Google, Redis, in-memory)
 └── infrastructure/  # Configuração, logging, segurança
 ```
 
 ### Camadas
 
-1. **Domain** (`domain/`): Entidades, portas (interfaces) e casos de uso
-2. **Application** (`application/`): Serviços que orquestram os casos de uso
+1. **Domain** (`domain/`): 
+   - Entidades de domínio
+   - Value Objects (CPF, etc.)
+   - Use Cases de domínio (GerarSegundaVia, ExcluirDados)
+   - Ports puramente de domínio (raros, durante migração gradual)
+
+2. **Application** (`application/`): 
+   - Serviços que orquestram os casos de uso (WhatsAppService, ApplicationService)
+   - Use Cases da camada de aplicação (ShowMenu, StartSecondCopyFlow, etc.)
+   - **Ports de integrações externas** (`application/ports/driven/`): Interfaces de integrações (WhatsApp, Sicoob, Google Drive, Google Sheets, Redis, Logger, etc.)
+   - DTOs
+
 3. **Adapters** (`adapters/`): Implementações concretas das portas
+   - http: Servidor Fastify
+   - whatsapp: Adapter WhatsApp Cloud API
+   - sicoob: Adapter Sicoob API
+   - google: Adapters Google Drive/Sheets
+   - redis: Adapter Redis (com fallback em memória)
+   - in-memory: Implementações em memória para desenvolvimento/testes
+
 4. **Infrastructure** (`infrastructure/`): Configuração, logging, segurança
+
+### Organização dos Ports
+
+**Importante**: Os ports de integrações externas estão localizados em `src/application/ports/driven/`, seguindo a arquitetura definida no projeto. Ports puramente de domínio (raros) podem estar em `src/domain/ports/` durante a migração gradual.
+
+**Ports de integrações externas** (em `application/ports/driven/`):
+- `WhatsAppPort`, `SicoobPort`, `DrivePort`, `SheetsPort`, `StoragePort`, `RateLimiter`, `Logger`, etc.
+
+**Ports puramente de domínio** (raros, em `domain/ports/`):
+- Abstrações genéricas como `Clock`, `IdGenerator`, `Hasher`, `RandomProvider`
+
+Ver mais detalhes em `docs/adr/ADR-0001-ports-na-application.md`.
 
 ### Benefícios da Arquitetura
 
@@ -119,7 +148,7 @@ cd assusa
 npm install
 ```
 
-3. Configure as variáveis de ambiente (veja seção [Configuração](#configuração))
+3. Configure as variáveis de ambiente (veja seção [Configuração](#configuração)). Crie um arquivo `.env` na raiz do projeto com as variáveis necessárias.
 
 4. Compile o projeto:
 ```bash
@@ -138,11 +167,9 @@ npm run dev
 
 ## ⚙️ Configuração
 
-Copie o arquivo `.env.example` para `.env` e preencha as variáveis:
+Crie um arquivo `.env` na raiz do projeto e configure as variáveis de ambiente abaixo.
 
-```bash
-cp .env.example .env
-```
+**Nota**: Não existe um arquivo `.env.example` no projeto. Configure manualmente as variáveis necessárias.
 
 ### Variáveis de Ambiente
 
@@ -188,6 +215,9 @@ cp .env.example .env
 #### Rate Limiting
 - `RATE_LIMIT_MAX_REQUESTS`: Máximo de requisições por janela (padrão: 100)
 - `RATE_LIMIT_WINDOW_MS`: Janela de tempo em milissegundos (padrão: 60000 = 1 minuto)
+
+#### Conversation State
+- `CONVERSATION_STATE_TTL_SECONDS`: TTL do estado da conversa em segundos (padrão: 900 = 15 minutos)
 
 ### Configuração do WhatsApp
 
@@ -314,9 +344,7 @@ gcloud auth login
 gcloud config set project SEU_PROJECT_ID
 ```
 
-2. Crie um Dockerfile (veja exemplo abaixo)
-
-3. Build e deploy:
+2. Build e deploy (o Dockerfile já existe na raiz do projeto):
 ```bash
 gcloud builds submit --tag gcr.io/SEU_PROJECT_ID/assusa
 gcloud run deploy assusa \
@@ -326,26 +354,9 @@ gcloud run deploy assusa \
   --allow-unauthenticated
 ```
 
-4. Configure as variáveis de ambiente no Cloud Run
+3. Configure as variáveis de ambiente no Cloud Run
 
-### Dockerfile Exemplo
-
-```dockerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY --from=builder /app/dist ./dist
-EXPOSE 3000
-CMD ["node", "dist/main.js"]
-```
+**Nota**: O projeto já possui um Dockerfile na raiz com multi-stage build e healthcheck configurado.
 
 ## 📁 Estrutura do Projeto
 
@@ -353,25 +364,36 @@ CMD ["node", "dist/main.js"]
 assusa/
 ├── src/
 │   ├── domain/
-│   │   ├── entities/          # Entidades de domínio
-│   │   ├── ports/             # Interfaces (contratos)
-│   │   └── use-cases/         # Casos de uso
+│   │   ├── entities/          # Entidades de domínio (Boleto, Request, User, etc.)
+│   │   ├── enums/             # Enumeradores (EventType, FlowType, RequestStatus)
+│   │   ├── helpers/           # Helpers de domínio (LGPD helpers)
+│   │   ├── ports/             # Ports puramente de domínio (durante migração gradual)
+│   │   ├── use-cases/         # Use Cases de domínio (GerarSegundaVia, ExcluirDados)
+│   │   └── value-objects/     # Value Objects (CPF)
 │   ├── application/
-│   │   └── services/          # Serviços de aplicação
+│   │   ├── dtos/              # Data Transfer Objects
+│   │   ├── ports/
+│   │   │   └── driven/        # Ports de integrações externas (WhatsApp, Sicoob, Google, Redis, Logger, etc.)
+│   │   ├── services/          # Serviços de aplicação (WhatsAppService, ApplicationService)
+│   │   └── use-cases/         # Use Cases da camada de aplicação (ShowMenu, StartSecondCopyFlow, etc.)
 │   ├── adapters/
 │   │   ├── http/              # Servidor Fastify
 │   │   ├── whatsapp/          # Adapter WhatsApp Cloud API
 │   │   ├── sicoob/            # Adapter Sicoob API
 │   │   ├── google/            # Adapters Google Drive/Sheets
-│   │   └── redis/             # Adapter Redis (com fallback)
+│   │   ├── redis/             # Adapter Redis (com fallback em memória)
+│   │   └── in-memory/         # Implementações em memória (para desenvolvimento/testes)
 │   ├── infrastructure/
-│   │   ├── config/            # Configuração
+│   │   ├── config/            # Configuração (loadConfig)
 │   │   ├── logging/           # Logger (Pino)
 │   │   └── security/          # Segurança/LGPD (CPF handler)
-│   └── main.ts                # Entry point
+│   └── main.ts                # Entry point (bootstrap)
 ├── tests/
 │   ├── unit/                  # Testes unitários
 │   └── integration/           # Testes de integração
+├── docker/                    # Dockerfile adicional
+├── docs/                      # Documentação (ADRs)
+├── Dockerfile                 # Dockerfile principal (multi-stage com healthcheck)
 ├── package.json
 ├── tsconfig.json
 ├── vitest.config.ts
