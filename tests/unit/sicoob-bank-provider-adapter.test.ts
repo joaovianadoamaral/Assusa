@@ -38,8 +38,6 @@ import { Logger } from '../../src/application/ports/driven/logger-port.js';
 import { Title } from '../../src/domain/entities/title.js';
 import { SicoobErrorCode } from '../../src/domain/enums/sicoob-error-code.js';
 
-const mockedAxios = vi.mocked(axios);
-
 // Mock da instância axios
 const mockAxiosInstance = {
   get: vi.fn(),
@@ -56,7 +54,7 @@ describe('SicoobBankProviderAdapter', () => {
     vi.clearAllMocks();
 
     // Mock axios.create para retornar nossa instância mockada
-    mockedAxios.create.mockReturnValue(mockAxiosInstance as any);
+    vi.mocked(axios.create).mockReturnValue(mockAxiosInstance as any);
     
     // Reconfigurar mock de isAxiosError após clearAllMocks
     // IMPORTANTE: O mock precisa reconhecer erros que têm a propriedade 'response'
@@ -118,7 +116,7 @@ describe('SicoobBankProviderAdapter', () => {
         },
       };
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
 
       // Testar indiretamente através de getSecondCopyPdf
       const title: Title = {
@@ -141,7 +139,7 @@ describe('SicoobBankProviderAdapter', () => {
       const result = await adapter.getSecondCopyPdf(title);
 
       // Verificar que autenticação foi chamada
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(vi.mocked(axios.post)).toHaveBeenCalledWith(
         mockConfig.sicoobAuthTokenUrl,
         expect.any(URLSearchParams),
         expect.objectContaining({
@@ -179,7 +177,7 @@ describe('SicoobBankProviderAdapter', () => {
         },
       };
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
 
       const title: Title = {
         id: 'test-id',
@@ -202,13 +200,13 @@ describe('SicoobBankProviderAdapter', () => {
       await adapter.getSecondCopyPdf(title);
       
       // Limpar mocks de post
-      mockedAxios.post.mockClear();
+      vi.mocked(axios.post).mockClear();
 
       // Segunda chamada - deve usar token em cache
       await adapter.getSecondCopyPdf(title);
 
       // Verificar que post não foi chamado novamente (token em cache)
-      expect(mockedAxios.post).not.toHaveBeenCalled();
+      expect(vi.mocked(axios.post)).not.toHaveBeenCalled();
 
       // Verificar que get foi chamado duas vezes com o mesmo token
       expect(mockAxiosInstance.get).toHaveBeenCalledTimes(2);
@@ -242,7 +240,7 @@ describe('SicoobBankProviderAdapter', () => {
         },
       };
 
-      mockedAxios.post
+      vi.mocked(axios.post)
         .mockResolvedValueOnce(mockTokenResponse1)
         .mockResolvedValueOnce(mockTokenResponse2);
 
@@ -273,7 +271,7 @@ describe('SicoobBankProviderAdapter', () => {
       await adapter.getSecondCopyPdf(title);
 
       // Verificar que post foi chamado duas vezes
-      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(axios.post)).toHaveBeenCalledTimes(2);
 
       // Verificar que segunda chamada usa novo token
       expect(mockAxiosInstance.get).toHaveBeenNthCalledWith(
@@ -323,7 +321,7 @@ describe('SicoobBankProviderAdapter', () => {
         status: 200,
       };
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
 
       vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockSegundaViaResponse);
 
@@ -380,7 +378,7 @@ describe('SicoobBankProviderAdapter', () => {
         status: 200,
       };
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
 
       vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockSegundaViaResponse);
 
@@ -421,7 +419,7 @@ describe('SicoobBankProviderAdapter', () => {
         status: 200,
       };
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
 
       vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockSegundaViaResponse);
 
@@ -461,7 +459,7 @@ describe('SicoobBankProviderAdapter', () => {
       // Mock axios.isAxiosError para retornar true
       vi.mocked(axios.isAxiosError).mockReturnValue(true);
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
       vi.mocked(mockAxiosInstance.get).mockRejectedValueOnce(axiosError);
 
       const result = await adapter.getSecondCopyPdf(title);
@@ -498,7 +496,7 @@ describe('SicoobBankProviderAdapter', () => {
         status: 200,
       };
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
 
       vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockSegundaViaResponse);
 
@@ -543,7 +541,7 @@ describe('SicoobBankProviderAdapter', () => {
         status: 200,
       };
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
 
       vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockSegundaViaResponse);
 
@@ -576,7 +574,7 @@ describe('SicoobBankProviderAdapter', () => {
         status: 200,
       };
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
 
       vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockSegundaViaResponse);
 
@@ -613,7 +611,7 @@ describe('SicoobBankProviderAdapter', () => {
         },
       };
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
 
       const title: Title = {
         id: 'test-id',
@@ -636,7 +634,7 @@ describe('SicoobBankProviderAdapter', () => {
       await adapterWithPem.getSecondCopyPdf(title);
 
       // Verificar que autenticação foi chamada (certificado será carregado em ensureHttpsAgent)
-      expect(mockedAxios.post).toHaveBeenCalled();
+      expect(vi.mocked(axios.post)).toHaveBeenCalled();
     });
 
     it('deve tentar configurar HTTPS Agent quando certificado PFX é fornecido', () => {
@@ -649,8 +647,8 @@ describe('SicoobBankProviderAdapter', () => {
       };
 
       // Limpar mocks anteriores
-      mockLogger.debug.mockClear();
-      mockLogger.warn.mockClear();
+      vi.mocked(mockLogger.debug).mockClear();
+      vi.mocked(mockLogger.warn).mockClear();
 
       // Criar novo adapter - pode falhar se node-forge não estiver instalado
       try {
@@ -688,7 +686,7 @@ describe('SicoobBankProviderAdapter', () => {
         },
       };
 
-      mockedAxios.post.mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
 
       const title: Title = {
         id: 'test-id',
