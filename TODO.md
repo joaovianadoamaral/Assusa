@@ -90,9 +90,11 @@ Este arquivo lista todas as pendências, ajustes necessários e melhorias futura
 
 ### 4. Implementação Simplificada - buscarBoletosPorCPF
 
-**Arquivo**: `src/adapters/sicoob/sicoob-api-adapter.ts`
+**Arquivo**: `src/adapters/sicoob/sicoob-bank-provider-adapter.ts`
 
-#### 4.1. Busca por CPF Hash (Linha ~82-125)
+**Status**: ✅ **CONSOLIDADO** - Método movido para `SicoobBankProviderAdapter` (linha ~490)
+
+#### 4.1. Busca por CPF Hash (Linha ~490)
 - [ ] **PENDÊNCIA**: Implementação simplificada - adaptar conforme API real do Sicoob
 - **Problema**: A API do Sicoob normalmente busca por CPF diretamente, mas estamos usando hash
 - **Notas no código**:
@@ -105,15 +107,32 @@ Este arquivo lista todas as pendências, ajustes necessários e melhorias futura
   3. Usar outra abordagem conforme documentação da API
 - **Ação**: Definir estratégia e implementar conforme documentação real
 
-#### 4.2. Endpoint de Busca (Linha ~94)
+#### 4.2. Endpoint de Busca (Linha ~505)
 - [ ] **PENDÊNCIA**: Endpoint real pode variar
 - **Código atual**: `/boletos`
 - **Ação**: Ajustar conforme catálogo/documentação
 
-#### 4.3. Endpoint de Segunda Via (Linha ~133)
+#### 4.3. Endpoint de Segunda Via (Método gerarSegundaVia - Linha ~540)
 - [ ] **PENDÊNCIA**: Endpoint real pode variar
 - **Código atual**: `/boletos/${nossoNumero}/pdf`
 - **Ação**: Ajustar conforme catálogo/documentação
+- **Nota**: Este método é mantido para compatibilidade com `SicoobPort`. Para novos usos, prefira `getSecondCopyPdf()`.
+
+---
+
+## ✅ CONCLUÍDO - Consolidação de Adapters
+
+### 11. Consolidação SicoobBankProviderAdapter
+
+**Status**: ✅ **CONCLUÍDO** - 2024-12-19
+
+- [x] `SicoobBankProviderAdapter` agora implementa tanto `BankProvider` quanto `SicoobPort`
+- [x] Métodos `buscarBoletosPorCPF()` e `gerarSegundaVia()` adicionados ao adapter consolidado
+- [x] `main.ts` atualizado para usar apenas `SicoobBankProviderAdapter`
+- [x] `SicoobTitleRepositoryAdapter` agora usa o adapter consolidado
+- [x] Testes passando
+
+**Arquivo legado**: `src/adapters/sicoob/sicoob-api-adapter.ts` pode ser removido após validação completa.
 
 ---
 
