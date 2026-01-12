@@ -13,11 +13,34 @@ interface SicoobAuthResponse {
 }
 
 interface SicoobBoletoResponse {
-  nossoNumero: string;
-  numeroDocumento: string;
-  valor: number;
-  dataVencimento: string;
-  situacao: string;
+  resultado?: {
+    nossoNumero?: string;
+    numeroDocumento?: string;
+    valor?: number;
+    dataVencimento?: string;
+    situacao?: string;
+    linhaDigitavel?: string;
+    codigoBarras?: string;
+    pdfBoleto?: string; // Base64 quando gerarPdf=true
+    [key: string]: unknown;
+  };
+  // Para compatibilidade com respostas que retornam array
+  [key: string]: unknown;
+}
+
+/**
+ * Resposta de segunda via do Sicoob (GET /boletos/segunda-via)
+ */
+interface SicoobSegundaViaResponse {
+  resultado: {
+    nossoNumero?: string;
+    linhaDigitavel?: string;
+    codigoBarras?: string;
+    pdfBoleto?: string; // Base64 quando gerarPdf=true
+    valor?: number;
+    dataVencimento?: string;
+    [key: string]: unknown;
+  };
 }
 
 export class SicoobApiAdapter implements SicoobPort {
@@ -50,8 +73,12 @@ export class SicoobApiAdapter implements SicoobPort {
         });
       }
 
+      // Usar URL de autenticação configurável (padrão: endpoint OAuth do Sicoob)
+      const authUrl = this.config.sicoobAuthTokenUrl || 
+        'https://auth.sicoob.com.br/auth/realms/cooperado/protocol/openid-connect/token';
+
       const response = await axios.post<SicoobAuthResponse>(
-        `${this.config.sicoobBaseUrl}/auth/token`,
+        authUrl,
         new URLSearchParams({
           grant_type: 'client_credentials',
           client_id: this.config.sicoobClientId,
@@ -83,40 +110,55 @@ export class SicoobApiAdapter implements SicoobPort {
     try {
       const token = await this.getAuthToken(requestId);
 
-      // Nota: A API do Sicoob normalmente busca por CPF diretamente
-      // Como estamos usando hash, precisamos adaptar. Em produção, pode ser necessário
-      // buscar todos os boletos e filtrar, ou ter uma tabela de mapeamento.
-      // Por enquanto, vamos assumir que a API do Sicoob pode buscar por CPF hash
-      // ou que temos uma forma de mapear o hash para o CPF original (que não deve ser armazenado).
+      // NOTA: A API do Sicoob requer CPF/CNPJ real, não hash.
+      // Este método recebe cpfHash, mas a API precisa do CPF original.
+      // Em produção, seria necessário ter um sistema intermediário que mapeie
+      // hash -> CPF (sem armazenar o CPF) ou usar outra estratégia.
       
-      // Esta é uma implementação simplificada. Em produção, adaptar conforme a API real do Sicoob.
+      // TODO: Implementar estratégia para obter CPF original a partir do hash
+      // Por enquanto, lançar erro informativo
+      throw new Error(
+        'buscarBoletosPorCPF requer CPF original, não hash. ' +
+        'Implementar estratégia de mapeamento hash->CPF temporário ou usar outra abordagem.'
+      );
+
+      // Código comentado para referência da rota correta:
+      /*
+      const cpfOriginal = await this.getCpfFromHash(cpfHash); // Método a ser implementado
+      
       const response = await this.api.get<SicoobBoletoResponse[]>(
-        '/boletos', // Endpoint real pode variar
+        `/pagadores/${cpfOriginal}/boletos`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
+            'client_id': this.config.sicoobClientId,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
             'X-Request-ID': requestId,
-          },
-          // Nota: A API real do Sicoob provavelmente não aceita hash de CPF diretamente
-          // Seria necessário ter um sistema intermediário ou usar outra abordagem
-          params: {
-            // Adaptar conforme documentação real da API
-            cpfHash, // Isso provavelmente não funcionará diretamente - é um exemplo
           },
         }
       );
 
-      const boletos: BoletoSicoob[] = response.data.map(boleto => ({
-        nossoNumero: boleto.nossoNumero,
-        numeroDocumento: boleto.numeroDocumento,
-        valor: boleto.valor,
-        vencimento: boleto.dataVencimento,
-        situacao: boleto.situacao,
-      }));
+      // A resposta pode ser um array direto ou um objeto com resultado
+      const boletosArray = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data as { resultado?: SicoobBoletoResponse[] }).resultado || [];
+
+      const boletos: BoletoSicoob[] = boletosArray.map(boleto => {
+        const resultado = boleto.resultado || boleto;
+        return {
+          nossoNumero: resultado.nossoNumero || '',
+          numeroDocumento: resultado.numeroDocumento || '',
+          valor: resultado.valor || 0,
+          vencimento: resultado.dataVencimento || '',
+          situacao: resultado.situacao || '',
+        };
+      });
 
       this.logger.info({ requestId, count: boletos.length }, 'Boletos encontrados no Sicoob');
 
       return boletos;
+      */
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro ao buscar boletos';
       this.logger.error({ requestId, error: errorMessage }, 'Erro ao buscar boletos no Sicoob');
@@ -128,21 +170,65 @@ export class SicoobApiAdapter implements SicoobPort {
     try {
       const token = await this.getAuthToken(requestId);
 
-      // Buscar PDF da 2ª via
-      const response = await this.api.get(
-        `/boletos/${nossoNumero}/pdf`, // Endpoint real pode variar
+      // Montar query params obrigatórios
+      // NOTA: Este adapter legado não tem acesso direto às configs de numeroCliente, codigoModalidade
+      // Em produção, seria necessário passar esses valores ou ajustar a arquitetura
+      const queryParams: Record<string, string> = {
+        nossoNumero,
+        gerarPdf: 'true',
+      };
+
+      // Tentar obter configs se disponíveis (pode não estar disponível neste adapter legado)
+      const numeroCliente = (this.config as unknown as { sicoobNumeroCliente?: string }).sicoobNumeroCliente;
+      const codigoModalidade = (this.config as unknown as { sicoobCodigoModalidade?: string }).sicoobCodigoModalidade;
+      const numeroContratoCobranca = (this.config as unknown as { sicoobNumeroContratoCobranca?: string }).sicoobNumeroContratoCobranca;
+
+      if (numeroCliente) {
+        queryParams.numeroCliente = numeroCliente;
+      }
+      if (codigoModalidade) {
+        queryParams.codigoModalidade = codigoModalidade;
+      }
+      if (numeroContratoCobranca) {
+        queryParams.numeroContratoCobranca = numeroContratoCobranca;
+      }
+
+      const clientId = this.config.sicoobClientId;
+
+      // Usar GET /boletos/segunda-via com gerarPdf=true
+      const response = await this.api.get<SicoobSegundaViaResponse>(
+        '/boletos/segunda-via',
         {
           headers: {
             'Authorization': `Bearer ${token}`,
+            'client_id': clientId,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
             'X-Request-ID': requestId,
           },
-          responseType: 'arraybuffer',
+          params: queryParams,
         }
       );
 
-      const pdfBuffer = Buffer.from(response.data);
+      // Extrair pdfBoleto do resultado
+      const pdfBase64 = response.data?.resultado?.pdfBoleto;
+      
+      if (!pdfBase64) {
+        this.logger.warn({ requestId, nossoNumero }, 'PDF não encontrado na resposta da segunda via');
+        throw new Error('PDF não encontrado na resposta da segunda via');
+      }
 
-      this.logger.info({ requestId, nossoNumero, pdfSize: pdfBuffer.length }, 'PDF da 2ª via gerado');
+      // Converter Base64 para Buffer
+      const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+
+      // Verificar se a resposta é realmente um PDF
+      const isPdf = pdfBuffer.slice(0, 4).toString() === '%PDF';
+      if (!isPdf) {
+        this.logger.warn({ requestId, nossoNumero }, 'Dados Base64 não correspondem a um PDF válido');
+        throw new Error('Resposta da API não é um PDF válido');
+      }
+
+      this.logger.info({ requestId, nossoNumero, pdfSize: pdfBuffer.length }, 'PDF da 2ª via gerado (Base64 convertido)');
 
       return pdfBuffer;
     } catch (error) {
