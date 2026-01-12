@@ -19,6 +19,8 @@ const configSchema = z.object({
   sicoobBaseUrl: z.string().url().default('https://api.sicoob.com.br'),
   sicoobCertificatePath: z.string().optional(),
   sicoobKeyPath: z.string().optional(),
+  sicoobCertPfxBase64: z.string().optional(),
+  sicoobCertPfxPassword: z.string().optional(),
 
   // Google
   googleServiceAccountJsonBase64: z.string().min(1),
@@ -69,6 +71,8 @@ export function loadConfig(): Config {
       sicoobBaseUrl: process.env.SICOOB_BASE_URL,
       sicoobCertificatePath: process.env.SICOOB_CERTIFICATE_PATH,
       sicoobKeyPath: process.env.SICOOB_KEY_PATH,
+      sicoobCertPfxBase64: process.env.SICOOB_CERT_PFX_BASE64,
+      sicoobCertPfxPassword: process.env.SICOOB_CERT_PFX_PASSWORD,
       googleServiceAccountJsonBase64: process.env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64,
       googleDriveFolderId: process.env.GOOGLE_DRIVE_FOLDER_ID,
       googleSheetsSpreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
