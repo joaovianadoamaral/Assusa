@@ -37,6 +37,10 @@ export class WhatsappRouter {
           }
           return;
 
+        case 'WAITING_FORMAT_SELECTION':
+          await this.applicationService.processFormatSelection(from, text, requestId);
+          return;
+
         case 'WAITING_MESSAGE':
           await this.applicationService.receiveTalkToUsMessage(from, text, requestId);
           return;

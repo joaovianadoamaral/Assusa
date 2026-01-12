@@ -2,6 +2,7 @@ import { ShowMenuUseCase } from '../use-cases/show-menu.use-case.js';
 import { StartSecondCopyFlowUseCase } from '../use-cases/start-second-copy-flow.use-case.js';
 import { ReceiveCpfAndProcessUseCase } from '../use-cases/receive-cpf-and-process.use-case.js';
 import { SelectTitleAndProcessUseCase } from '../use-cases/select-title-and-process.use-case.js';
+import { ProcessFormatSelectionUseCase } from '../use-cases/process-format-selection.use-case.js';
 import { GenerateSecondCopyUseCase, GenerateSecondCopyResult } from '../use-cases/generate-second-copy.use-case.js';
 import { StartTalkToUsUseCase } from '../use-cases/start-talk-to-us.use-case.js';
 import { ReceiveTalkToUsMessageUseCase } from '../use-cases/receive-talk-to-us-message.use-case.js';
@@ -20,6 +21,7 @@ export class ApplicationService {
     private startSecondCopyFlowUseCase: StartSecondCopyFlowUseCase,
     private receiveCpfAndProcessUseCase: ReceiveCpfAndProcessUseCase,
     private selectTitleAndProcessUseCase: SelectTitleAndProcessUseCase,
+    private processFormatSelectionUseCase: ProcessFormatSelectionUseCase,
     private generateSecondCopyUseCase: GenerateSecondCopyUseCase,
     private startTalkToUsUseCase: StartTalkToUsUseCase,
     private receiveTalkToUsMessageUseCase: ReceiveTalkToUsMessageUseCase,
@@ -55,10 +57,18 @@ export class ApplicationService {
 
   /**
    * 4) SelectTitleAndProcess(from, selectionIndex)
-   * Valida índice, pega title selecionado do estado, chama GenerateSecondCopy
+   * Valida índice, pega title selecionado do estado, mostra menu de formato
    */
   async selectTitleAndProcess(from: string, selectionIndex: number, requestId: string): Promise<void> {
     await this.selectTitleAndProcessUseCase.execute(from, selectionIndex, requestId);
+  }
+
+  /**
+   * 4.1) ProcessFormatSelection(from, formatInput)
+   * Processa escolha de formato (PDF, código de barras, linha digitável)
+   */
+  async processFormatSelection(from: string, formatInput: string, requestId: string): Promise<void> {
+    await this.processFormatSelectionUseCase.execute(from, formatInput, requestId);
   }
 
   /**

@@ -17,6 +17,7 @@ import { ShowMenuUseCase } from './application/use-cases/show-menu.use-case.js';
 import { StartSecondCopyFlowUseCase } from './application/use-cases/start-second-copy-flow.use-case.js';
 import { ReceiveCpfAndProcessUseCase } from './application/use-cases/receive-cpf-and-process.use-case.js';
 import { SelectTitleAndProcessUseCase } from './application/use-cases/select-title-and-process.use-case.js';
+import { ProcessFormatSelectionUseCase } from './application/use-cases/process-format-selection.use-case.js';
 import { GenerateSecondCopyUseCase } from './application/use-cases/generate-second-copy.use-case.js';
 import { StartTalkToUsUseCase } from './application/use-cases/start-talk-to-us.use-case.js';
 import { ReceiveTalkToUsMessageUseCase } from './application/use-cases/receive-talk-to-us-message.use-case.js';
@@ -81,14 +82,20 @@ async function bootstrap() {
       whatsappAdapter,
       titleRepository,
       rateLimiter,
-      generateSecondCopyUseCase,
       logger,
       config
     );
     const selectTitleAndProcessUseCase = new SelectTitleAndProcessUseCase(
       conversationStateStore,
       whatsappAdapter,
-      generateSecondCopyUseCase,
+      logger
+    );
+    const processFormatSelectionUseCase = new ProcessFormatSelectionUseCase(
+      conversationStateStore,
+      whatsappAdapter,
+      bankProvider,
+      driveStorage,
+      sheetLogger,
       logger
     );
     const startTalkToUsUseCase = new StartTalkToUsUseCase(
@@ -123,6 +130,7 @@ async function bootstrap() {
       startSecondCopyFlowUseCase,
       receiveCpfAndProcessUseCase,
       selectTitleAndProcessUseCase,
+      processFormatSelectionUseCase,
       generateSecondCopyUseCase,
       startTalkToUsUseCase,
       receiveTalkToUsMessageUseCase,
