@@ -867,8 +867,13 @@ Este projeto está sob a licença MIT.
 ## 📞 Suporte
 
 Para suporte, entre em contato através dos canais:
-- Email: contato@assusa.com.br
-- WhatsApp: (00) 0 0000-0000
+
+- **Email comercial:** [aguavaledoouro@gmail.com](mailto:aguavaledoouro@gmail.com)
+- **Email técnico:** [joaovianaamr@gmail.com](mailto:joaovianaamr@gmail.com)
+- **WhatsApp Assusa:**
+  - (31) 8549-7547
+  - (31) 3624-8550
+- **WhatsApp suporte técnico:** (31) 99475-6008
 
 ---
 
