@@ -5,7 +5,7 @@ import fs from 'fs/promises';
 import { BankProvider } from '../../application/ports/driven/bank-provider.port.js';
 import { SicoobPort } from '../../application/ports/driven/sicoob-port.js';
 import { Title } from '../../domain/entities/title.js';
-import { BoletoSicoob } from '../../domain/entities/boleto.js';
+import { BoletoSicoob, ConsultaBoletoParams, SicoobBoletoCompleto } from '../../domain/entities/boleto.js';
 import { BankPdfResult } from '../../application/dtos/bank-pdf-result.dto.js';
 import { BankDataResult } from '../../application/dtos/bank-data-result.dto.js';
 import { Logger } from '../../application/ports/driven/logger-port.js';
@@ -745,6 +745,159 @@ export class SicoobBankProviderAdapter implements BankProvider, SicoobPort {
       
       throw new SicoobError(
         `Falha ao gerar 2ª via: ${errorMessage}`,
+        errorCode,
+        statusCode
+      );
+    }
+  }
+
+  /**
+   * Consulta boleto completo via GET /boletos
+   * 
+   * Permite consulta por nossoNumero, linhaDigitavel ou codigoBarras.
+   * Pelo menos um dos três identificadores deve ser fornecido.
+   * 
+   * Implementação interna - pronto para uso futuro.
+   * 
+   * @param params Parâmetros de consulta (nossoNumero, linhaDigitavel ou codigoBarras)
+   * @param requestId ID da requisição para rastreamento
+   * @returns Dados completos do boleto ou null se não encontrado
+   * @throws SicoobError em caso de erro (exceto 404 que retorna null)
+   */
+  async consultarBoleto(params: ConsultaBoletoParams, requestId: string): Promise<SicoobBoletoCompleto | null> {
+    try {
+      // Validar que pelo menos um identificador foi fornecido
+      const temNossoNumero = params.nossoNumero !== undefined && params.nossoNumero !== null;
+      const temLinhaDigitavel = params.linhaDigitavel !== undefined && params.linhaDigitavel !== null && params.linhaDigitavel.trim() !== '';
+      const temCodigoBarras = params.codigoBarras !== undefined && params.codigoBarras !== null && params.codigoBarras.trim() !== '';
+
+      if (!temNossoNumero && !temLinhaDigitavel && !temCodigoBarras) {
+        throw new SicoobError(
+          'Pelo menos um identificador deve ser fornecido: nossoNumero, linhaDigitavel ou codigoBarras',
+          SicoobErrorCode.SICOOB_BAD_REQUEST
+        );
+      }
+
+      // Validar formato da linha digitável (47 caracteres)
+      if (temLinhaDigitavel && params.linhaDigitavel!.length !== 47) {
+        throw new SicoobError(
+          `Linha digitável deve ter exatamente 47 caracteres (recebido: ${params.linhaDigitavel!.length})`,
+          SicoobErrorCode.SICOOB_BAD_REQUEST
+        );
+      }
+
+      // Validar formato do código de barras (44 caracteres)
+      if (temCodigoBarras && params.codigoBarras!.length !== 44) {
+        throw new SicoobError(
+          `Código de barras deve ter exatamente 44 caracteres (recebido: ${params.codigoBarras!.length})`,
+          SicoobErrorCode.SICOOB_BAD_REQUEST
+        );
+      }
+
+      const token = await this.getAuthToken();
+
+      // Montar query params obrigatórios
+      const queryParams: Record<string, string | number> = {
+        numeroCliente: this.config.sicoobNumeroCliente,
+        codigoModalidade: this.config.sicoobCodigoModalidade,
+      };
+
+      // Adicionar identificadores fornecidos
+      if (temNossoNumero) {
+        queryParams.nossoNumero = params.nossoNumero!;
+      }
+      if (temLinhaDigitavel) {
+        queryParams.linhaDigitavel = params.linhaDigitavel!.trim();
+      }
+      if (temCodigoBarras) {
+        queryParams.codigoBarras = params.codigoBarras!.trim();
+      }
+
+      // Adicionar contrato se configurado
+      if (this.config.sicoobNumeroContratoCobranca) {
+        queryParams.numeroContratoCobranca = this.config.sicoobNumeroContratoCobranca;
+      }
+
+      const response = await this.api.get<{ resultado: SicoobBoletoCompleto }>(
+        '/boletos',
+        {
+          headers: this.buildSicoobHeaders(token, requestId, false), // GET não precisa Content-Type
+          params: queryParams,
+          httpsAgent: this.httpsAgent, // Usar mTLS se configurado
+        }
+      );
+
+      // A resposta pode ter estrutura { resultado: {...} } ou ser direta
+      const resultado = response.data?.resultado || (response.data as unknown as SicoobBoletoCompleto);
+
+      if (!resultado) {
+        this.logger.warn({ 
+          requestId,
+          temNossoNumero,
+          temLinhaDigitavel,
+          temCodigoBarras
+        }, 'Resultado não encontrado na resposta da consulta de boleto');
+        return null;
+      }
+
+      // Validar campos obrigatórios básicos
+      if (resultado.nossoNumero === undefined || resultado.nossoNumero === null) {
+        this.logger.warn({ 
+          requestId 
+        }, 'Dados do boleto incompletos (nossoNumero ausente)');
+        return null;
+      }
+
+      // Mascarar CPF/CNPJ do pagador e beneficiário em logs (LGPD)
+      const pagadorCpfCnpjMasked = resultado.pagador?.numeroCpfCnpj 
+        ? `***.***.***-${resultado.pagador.numeroCpfCnpj.slice(-2)}`
+        : 'N/A';
+      const beneficiarioCpfCnpjMasked = resultado.beneficiarioFinal?.numeroCpfCnpj
+        ? `***.***.***-${resultado.beneficiarioFinal.numeroCpfCnpj.slice(-2)}`
+        : 'N/A';
+
+      this.logger.info({ 
+        requestId,
+        nossoNumero: resultado.nossoNumero,
+        valor: resultado.valor,
+        situacaoBoleto: resultado.situacaoBoleto,
+        pagadorCpfCnpjMasked,
+        beneficiarioCpfCnpjMasked,
+        temQrCode: !!resultado.qrCode,
+        temHistorico: resultado.listaHistorico?.length > 0,
+        temRateio: resultado.rateioCreditos && resultado.rateioCreditos.length > 0
+      }, 'Boleto consultado com sucesso do Sicoob');
+
+      return resultado;
+    } catch (error) {
+      const errorCode = this.mapErrorToCode(error);
+      const statusCode = this.getStatusCode(error);
+
+      // Se for SicoobError, relançar (já tem mensagem adequada)
+      if (error instanceof SicoobError) {
+        throw error;
+      }
+
+      // Não logar payload bruto do banco (conforme regras LGPD)
+      this.logger.error({ 
+        requestId,
+        code: errorCode,
+        statusCode,
+        temNossoNumero: params.nossoNumero !== undefined,
+        temLinhaDigitavel: params.linhaDigitavel !== undefined,
+        temCodigoBarras: params.codigoBarras !== undefined,
+        // Não incluir error.message completo se contiver dados sensíveis
+      }, 'Erro ao consultar boleto do Sicoob');
+
+      // Se for 404, retornar null (não é erro fatal)
+      if (errorCode === SicoobErrorCode.SICOOB_NOT_FOUND) {
+        return null;
+      }
+
+      // Para outros erros, lançar exceção
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao consultar boleto';
+      throw new SicoobError(
+        `Falha ao consultar boleto: ${errorMessage}`,
         errorCode,
         statusCode
       );
