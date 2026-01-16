@@ -342,9 +342,67 @@ SICOOB_KEY_PATH=/caminho/para/key.pem
 #### Endpoints Utilizados
 
 - **Autenticação**: `POST {SICOOB_AUTH_TOKEN_URL}` (OAuth Client Credentials)
-- **Segunda via com PDF**: `GET {SICOOB_BASE_URL}/boletos/segunda-via?gerarPdf=true&...`
-- **Dados do boleto**: `GET {SICOOB_BASE_URL}/boletos/segunda-via?gerarPdf=false&...`
-- **Buscar boletos por CPF**: `GET {SICOOB_BASE_URL}/pagadores/{cpfCnpj}/boletos`
+- **Listar boletos por CPF**: `GET {SICOOB_BASE_URL}/pagadores/{cpf}/boletos`
+- **Consultar boleto completo**: `GET {SICOOB_BASE_URL}/boletos?nossoNumero={nossoNumero}`
+- **Segunda via com PDF**: `GET {SICOOB_BASE_URL}/boletos/segunda-via?gerarPdf=true&nossoNumero={nossoNumero}`
+- **Dados do boleto**: `GET {SICOOB_BASE_URL}/boletos/segunda-via?gerarPdf=false&nossoNumero={nossoNumero}`
+
+#### Fluxo de Requisições do Sicoob
+
+O sistema obtém os identificadores dos boletos (`nossoNumero`) a partir do CPF informado pelo usuário através do seguinte fluxo:
+
+**1. Usuário informa CPF**
+- Entrada: apenas o CPF (11 dígitos)
+
+**2. Listagem inicial de boletos (usa CPF)**
+- **Endpoint**: `GET /pagadores/{cpf}/boletos`
+- **Método**: `buscarBoletosPorCPF(cpf: string, requestId: string)`
+- **Resposta**: Lista de boletos, cada um contendo:
+  ```json
+  {
+    "nossoNumero": "12345678901234567",
+    "numeroDocumento": "DOC001",
+    "valor": 100.50,
+    "vencimento": "2024-12-31",
+    "situacao": "Aberto"
+  }
+  ```
+- **Observação**: O `nossoNumero` é **extraído da resposta** desta chamada inicial
+
+**3. Enriquecimento dos boletos (usa nossoNumero obtido da lista)**
+- **Endpoint**: `GET /boletos?nossoNumero={nossoNumero}`
+- **Método**: `consultarBoleto({ nossoNumero }, requestId)`
+- **Quando**: Executado em paralelo para cada boleto encontrado na lista
+- **Usa**: `nossoNumero` extraído da resposta do passo 2
+- **Retorna**: Dados completos do boleto (pagador, histórico, QR Code, etc.)
+
+**4. Geração da segunda via (usa nossoNumero obtido da lista)**
+- **Endpoint**: `GET /boletos/segunda-via?nossoNumero={nossoNumero}&gerarPdf=true/false`
+- **Métodos**: `getSecondCopyPdf(title)` / `getSecondCopyData(title)`
+- **Quando**: Quando o usuário escolhe o formato (PDF, código de barras ou linha digitável)
+- **Usa**: `title.nossoNumero` (obtido do passo 2, sem precisar do CPF novamente)
+- **Retorna**: PDF ou dados atualizados do boleto
+
+**Fluxo visual:**
+```
+1. Usuário informa CPF
+   ↓
+2. GET /pagadores/{cpf}/boletos
+   ↓
+3. Resposta: Lista de boletos [ { nossoNumero: "123...", ... }, ... ]
+   ↓
+4. Sistema extrai nossoNumero de cada boleto da lista
+   ↓
+5. Para cada nossoNumero extraído (em paralelo):
+   ├─→ GET /boletos?nossoNumero={nossoNumero} (enriquecimento)
+   └─→ GET /boletos/segunda-via?nossoNumero={nossoNumero} (gerar PDF)
+```
+
+**Resumo:**
+- ✅ **CPF é necessário apenas para descobrir quais boletos existem** (passo 2)
+- ✅ **Depois, todas as operações usam `nossoNumero`** extraído da lista inicial
+- ✅ **O `nossoNumero` é obtido automaticamente** da resposta de `GET /pagadores/{cpf}/boletos`
+- ✅ **Não é necessário que o usuário informe `nossoNumero`** - ele vem da resposta do Sicoob
 
 #### Notas Importantes
 
