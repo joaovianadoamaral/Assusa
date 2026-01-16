@@ -63,11 +63,54 @@ export class BradescoBankProviderAdapter implements BankProvider, BradescoPort {
     private config: Config,
     private logger: Logger
   ) {
+    // Validar configuração obrigatória na inicialização
+    if (!config.bradescoClientId) {
+      throw new Error('BRADESCO_CLIENT_ID é obrigatório para usar BradescoBankProviderAdapter');
+    }
+    if (!config.bradescoPrivateKeyPem && !config.bradescoPfxBase64) {
+      throw new Error('BRADESCO_PRIVATE_KEY_PEM ou BRADESCO_PFX_BASE64 é obrigatório para usar BradescoBankProviderAdapter');
+    }
+    if (!config.bradescoBeneficiaryCnpj) {
+      throw new Error('BRADESCO_BENEFICIARY_CNPJ é obrigatório para usar BradescoBankProviderAdapter');
+    }
+
+    // Validar formato da chave privada PEM se fornecida (apenas em produção, não em testes)
+    // A validação real acontece quando tenta usar a chave (lazy validation)
+    if (config.bradescoPrivateKeyPem && config.nodeEnv !== 'test') {
+      try {
+        this.validatePrivateKeyPem(config.bradescoPrivateKeyPem);
+      } catch (error) {
+        // Em desenvolvimento, apenas logar warning; em produção, falhar
+        if (config.nodeEnv === 'production') {
+          throw error;
+        }
+        logger.warn({ error }, 'Chave privada PEM pode estar mal formatada - será validada em runtime');
+      }
+    }
+
     const baseUrl = config.bradescoBaseUrl || 'https://openapi.bradesco.com.br';
     this.api = axios.create({
       baseURL: baseUrl,
       timeout: 30000, // 30 segundos
     });
+  }
+
+  /**
+   * Valida formato básico da chave privada PEM
+   */
+  private validatePrivateKeyPem(privateKeyPem: string): void {
+    // Verificar se contém marcadores PEM básicos
+    if (!privateKeyPem.includes('-----BEGIN') || !privateKeyPem.includes('-----END')) {
+      throw new Error('BRADESCO_PRIVATE_KEY_PEM deve estar no formato PEM válido (com -----BEGIN e -----END)');
+    }
+
+    // Tentar criar objeto de chave para validar formato
+    try {
+      crypto.createPrivateKey(privateKeyPem);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      throw new Error(`BRADESCO_PRIVATE_KEY_PEM inválida: ${errorMessage}. Verifique se a chave está corretamente formatada.`);
+    }
   }
 
   /**
