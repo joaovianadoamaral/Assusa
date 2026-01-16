@@ -809,4 +809,436 @@ describe('SicoobBankProviderAdapter', () => {
       );
     });
   });
+
+  describe('consultarBoleto', () => {
+    it('deve consultar boleto por nossoNumero com sucesso', async () => {
+      const mockTokenResponse = {
+        data: {
+          access_token: 'test-access-token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        },
+      };
+
+      const mockBoletoResponse = {
+        data: {
+          resultado: {
+            numeroCliente: 25546454,
+            codigoModalidade: 1,
+            numeroContaCorrente: 0,
+            codigoEspecieDocumento: 'DM',
+            dataEmissao: '2018-09-20',
+            nossoNumero: 123456,
+            seuNumero: '1235512',
+            identificacaoBoletoEmpresa: '4562',
+            codigoBarras: '07092501614004706610157633070651479470000006500',
+            linhaDigitavel: '42297115040000195441184217468127172300000023124',
+            identificacaoEmissaoBoleto: 1,
+            identificacaoDistribuicaoBoleto: 1,
+            valor: 156.23,
+            dataVencimento: '2018-09-20',
+            dataLimitePagamento: '2018-09-20',
+            valorAbatimento: 1,
+            tipoDesconto: 1,
+            dataPrimeiroDesconto: '2018-09-20',
+            valorPrimeiroDesconto: 1,
+            dataSegundoDesconto: '2018-09-20',
+            valorSegundoDesconto: 0,
+            dataTerceiroDesconto: '2018-09-20',
+            valorTerceiroDesconto: 0,
+            tipoMulta: 1,
+            dataMulta: '2018-09-20',
+            valorMulta: 5,
+            tipoJurosMora: 1,
+            dataJurosMora: '2018-09-20',
+            valorJurosMora: 4,
+            numeroParcela: 1,
+            aceite: true,
+            numeroDiasNegativacao: 60,
+            numeroDiasProtesto: 30,
+            quantidadeDiasFloat: 2,
+            pagador: {
+              numeroCpfCnpj: '98765432185',
+              nome: 'Marcelo dos Santos',
+              endereco: 'Rua 87 Quadra 1 Lote 1 casa 1',
+              bairro: 'Santa Rosa',
+              cidade: 'Luziânia',
+              cep: '72320000',
+              uf: 'DF',
+              email: 'pagador@dominio.com.br',
+            },
+            beneficiarioFinal: {
+              numeroCpfCnpj: '98784978699',
+              nome: 'Lucas de Lima',
+            },
+            mensagensInstrucao: [
+              'Descrição da Instrução 1',
+              'Descrição da Instrução 2',
+            ],
+            listaHistorico: [
+              {
+                dataHistorico: '2019-05-31',
+                tipoHistorico: '1',
+                descricaoHistorico: 'TARIFA - TAR. MANUTENÇÃO DE TÍTULO VENCIDO - R$ 0,75',
+              },
+            ],
+            situacaoBoleto: 'Em Aberto',
+            qrCode: '00020101021226950014br.gov.bcb.pix2573pix.sicoob.com.br/qr/payload/v2/cobv/e736df1b-1389-4b96-a070-c8dddac768de5204000053039865802BR5924JULIO PEREIRA DE OLIVEIRA6008Brasilia62070503***630435A3',
+            numeroContratoCobranca: 1,
+          },
+        },
+        status: 200,
+      };
+
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockBoletoResponse);
+
+      const requestId = 'test-request-id';
+      const result = await adapter.consultarBoleto({ nossoNumero: 123456 }, requestId);
+
+      expect(result).not.toBeNull();
+      expect(result?.nossoNumero).toBe(123456);
+      expect(result?.valor).toBe(156.23);
+      expect(result?.situacaoBoleto).toBe('Em Aberto');
+      expect(result?.pagador.nome).toBe('Marcelo dos Santos');
+      expect(result?.beneficiarioFinal?.nome).toBe('Lucas de Lima');
+      expect(result?.qrCode).toBeDefined();
+      expect(result?.listaHistorico).toHaveLength(1);
+
+      // Verificar que a chamada foi feita com os parâmetros corretos
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/boletos',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test-access-token',
+            'client_id': 'test-client-id',
+            'Accept': 'application/json',
+          }),
+          params: expect.objectContaining({
+            numeroCliente: '12345',
+            codigoModalidade: '01',
+            nossoNumero: 123456,
+            numeroContratoCobranca: '67890',
+          }),
+        })
+      );
+
+      // Verificar que CPF/CNPJ foram mascarados em logs (LGPD)
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId,
+          nossoNumero: 123456,
+          pagadorCpfCnpjMasked: expect.stringContaining('***'),
+          beneficiarioCpfCnpjMasked: expect.stringContaining('***'),
+        }),
+        'Boleto consultado com sucesso do Sicoob'
+      );
+    });
+
+    it('deve consultar boleto por linhaDigitavel com sucesso', async () => {
+      const mockTokenResponse = {
+        data: {
+          access_token: 'test-access-token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        },
+      };
+
+      const linhaDigitavel = '42297115040000195441184217468127172300000023124'; // 47 caracteres
+
+      const mockBoletoResponse = {
+        data: {
+          resultado: {
+            nossoNumero: 123456,
+            linhaDigitavel,
+            valor: 100.50,
+            situacaoBoleto: 'Em Aberto',
+            pagador: {
+              numeroCpfCnpj: '12345678901',
+              nome: 'Teste',
+              endereco: 'Rua Teste',
+              bairro: 'Bairro Teste',
+              cidade: 'Cidade Teste',
+              cep: '12345678',
+              uf: 'SP',
+              email: 'teste@teste.com',
+            },
+            mensagensInstrucao: [],
+            listaHistorico: [],
+            numeroContratoCobranca: 1,
+            numeroCliente: 25546454,
+            codigoModalidade: 1,
+            numeroContaCorrente: 0,
+            codigoEspecieDocumento: 'DM',
+            dataEmissao: '2018-09-20',
+            seuNumero: '1235512',
+            identificacaoBoletoEmpresa: '4562',
+            codigoBarras: '07092501614004706610157633070651479470000006500',
+            identificacaoEmissaoBoleto: 1,
+            identificacaoDistribuicaoBoleto: 1,
+            dataVencimento: '2018-09-20',
+            dataLimitePagamento: '2018-09-20',
+            valorAbatimento: 0,
+            tipoDesconto: 0,
+            dataPrimeiroDesconto: '2018-09-20',
+            valorPrimeiroDesconto: 0,
+            dataSegundoDesconto: '2018-09-20',
+            valorSegundoDesconto: 0,
+            dataTerceiroDesconto: '2018-09-20',
+            valorTerceiroDesconto: 0,
+            tipoMulta: 0,
+            dataMulta: '2018-09-20',
+            valorMulta: 0,
+            tipoJurosMora: 0,
+            dataJurosMora: '2018-09-20',
+            valorJurosMora: 0,
+            numeroParcela: 1,
+            aceite: true,
+            numeroDiasNegativacao: 0,
+            numeroDiasProtesto: 0,
+            quantidadeDiasFloat: 0,
+          },
+        },
+        status: 200,
+      };
+
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockBoletoResponse);
+
+      const requestId = 'test-request-id';
+      const result = await adapter.consultarBoleto({ linhaDigitavel }, requestId);
+
+      expect(result).not.toBeNull();
+      expect(result?.linhaDigitavel).toBe(linhaDigitavel);
+
+      // Verificar que linhaDigitavel foi enviada como parâmetro
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/boletos',
+        expect.objectContaining({
+          params: expect.objectContaining({
+            linhaDigitavel,
+          }),
+        })
+      );
+    });
+
+    it('deve consultar boleto por codigoBarras com sucesso', async () => {
+      const mockTokenResponse = {
+        data: {
+          access_token: 'test-access-token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        },
+      };
+
+      const codigoBarras = '07092501614004706610157633070651479470000006'; // 44 caracteres
+
+      const mockBoletoResponse = {
+        data: {
+          resultado: {
+            nossoNumero: 123456,
+            codigoBarras,
+            valor: 100.50,
+            situacaoBoleto: 'Em Aberto',
+            pagador: {
+              numeroCpfCnpj: '12345678901',
+              nome: 'Teste',
+              endereco: 'Rua Teste',
+              bairro: 'Bairro Teste',
+              cidade: 'Cidade Teste',
+              cep: '12345678',
+              uf: 'SP',
+              email: 'teste@teste.com',
+            },
+            mensagensInstrucao: [],
+            listaHistorico: [],
+            numeroContratoCobranca: 1,
+            numeroCliente: 25546454,
+            codigoModalidade: 1,
+            numeroContaCorrente: 0,
+            codigoEspecieDocumento: 'DM',
+            dataEmissao: '2018-09-20',
+            seuNumero: '1235512',
+            identificacaoBoletoEmpresa: '4562',
+            linhaDigitavel: '42297115040000195441184217468127172300000023124',
+            identificacaoEmissaoBoleto: 1,
+            identificacaoDistribuicaoBoleto: 1,
+            dataVencimento: '2018-09-20',
+            dataLimitePagamento: '2018-09-20',
+            valorAbatimento: 0,
+            tipoDesconto: 0,
+            dataPrimeiroDesconto: '2018-09-20',
+            valorPrimeiroDesconto: 0,
+            dataSegundoDesconto: '2018-09-20',
+            valorSegundoDesconto: 0,
+            dataTerceiroDesconto: '2018-09-20',
+            valorTerceiroDesconto: 0,
+            tipoMulta: 0,
+            dataMulta: '2018-09-20',
+            valorMulta: 0,
+            tipoJurosMora: 0,
+            dataJurosMora: '2018-09-20',
+            valorJurosMora: 0,
+            numeroParcela: 1,
+            aceite: true,
+            numeroDiasNegativacao: 0,
+            numeroDiasProtesto: 0,
+            quantidadeDiasFloat: 0,
+          },
+        },
+        status: 200,
+      };
+
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockBoletoResponse);
+
+      const requestId = 'test-request-id';
+      const result = await adapter.consultarBoleto({ codigoBarras }, requestId);
+
+      expect(result).not.toBeNull();
+      expect(result?.codigoBarras).toBe(codigoBarras);
+
+      // Verificar que codigoBarras foi enviado como parâmetro
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(
+        '/boletos',
+        expect.objectContaining({
+          params: expect.objectContaining({
+            codigoBarras,
+          }),
+        })
+      );
+    });
+
+    it('deve lançar erro quando nenhum identificador é fornecido', async () => {
+      const requestId = 'test-request-id';
+
+      await expect(
+        adapter.consultarBoleto({}, requestId)
+      ).rejects.toThrow(SicoobError);
+
+      await expect(
+        adapter.consultarBoleto({}, requestId)
+      ).rejects.toThrow('Pelo menos um identificador deve ser fornecido');
+    });
+
+    it('deve lançar erro quando linhaDigitavel não tem 47 caracteres', async () => {
+      const requestId = 'test-request-id';
+      const linhaDigitavelInvalida = '12345'; // Menos de 47 caracteres
+
+      await expect(
+        adapter.consultarBoleto({ linhaDigitavel: linhaDigitavelInvalida }, requestId)
+      ).rejects.toThrow(SicoobError);
+
+      await expect(
+        adapter.consultarBoleto({ linhaDigitavel: linhaDigitavelInvalida }, requestId)
+      ).rejects.toThrow('Linha digitável deve ter exatamente 47 caracteres');
+    });
+
+    it('deve lançar erro quando codigoBarras não tem 44 caracteres', async () => {
+      const requestId = 'test-request-id';
+      const codigoBarrasInvalido = '12345'; // Menos de 44 caracteres
+
+      await expect(
+        adapter.consultarBoleto({ codigoBarras: codigoBarrasInvalido }, requestId)
+      ).rejects.toThrow(SicoobError);
+
+      await expect(
+        adapter.consultarBoleto({ codigoBarras: codigoBarrasInvalido }, requestId)
+      ).rejects.toThrow('Código de barras deve ter exatamente 44 caracteres');
+    });
+
+    it('deve retornar null quando recebe 404', async () => {
+      const mockTokenResponse = {
+        data: {
+          access_token: 'test-access-token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        },
+      };
+
+      const axiosError = {
+        isAxiosError: true,
+        response: {
+          status: 404,
+          data: { message: 'Not found' },
+        },
+        message: 'Request failed with status code 404',
+      } as any;
+
+      // Garantir que o mock reconhece o erro como AxiosError
+      vi.mocked(axios.isAxiosError).mockImplementation((error: unknown) => {
+        const err = error as any;
+        return err?.isAxiosError === true || err?.response !== undefined;
+      });
+
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(mockAxiosInstance.get).mockRejectedValueOnce(axiosError);
+
+      const requestId = 'test-request-id';
+      const result = await adapter.consultarBoleto({ nossoNumero: 999999 }, requestId);
+
+      expect(result).toBeNull();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId,
+          code: 'SICOOB_NOT_FOUND',
+          statusCode: 404,
+        }),
+        'Erro ao consultar boleto do Sicoob'
+      );
+    });
+
+    it('deve retornar null quando resultado não está presente', async () => {
+      const mockTokenResponse = {
+        data: {
+          access_token: 'test-access-token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        },
+      };
+
+      const mockBoletoResponse = {
+        data: {
+          // resultado ausente
+        },
+        status: 200,
+      };
+
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockBoletoResponse);
+
+      const requestId = 'test-request-id';
+      const result = await adapter.consultarBoleto({ nossoNumero: 123456 }, requestId);
+
+      expect(result).toBeNull();
+    });
+
+    it('deve retornar null quando nossoNumero não está presente no resultado', async () => {
+      const mockTokenResponse = {
+        data: {
+          access_token: 'test-access-token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        },
+      };
+
+      const mockBoletoResponse = {
+        data: {
+          resultado: {
+            // nossoNumero ausente
+            valor: 100.50,
+          },
+        },
+        status: 200,
+      };
+
+      vi.mocked(axios.post).mockResolvedValueOnce(mockTokenResponse);
+      vi.mocked(mockAxiosInstance.get).mockResolvedValueOnce(mockBoletoResponse);
+
+      const requestId = 'test-request-id';
+      const result = await adapter.consultarBoleto({ nossoNumero: 123456 }, requestId);
+
+      expect(result).toBeNull();
+    });
+  });
 });
