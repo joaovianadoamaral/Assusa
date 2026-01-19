@@ -73,26 +73,59 @@ export class RedisRateLimiter implements RateLimiter {
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
 
-    // Incrementar contador
-    const count = await this.client!.incr(rateLimitKey);
+    // Script Lua atômico para incrementar e definir TTL em uma única operação
+    // Isso evita race condition entre INCR e EXPIRE
+    const luaScript = `
+      local key = KEYS[1]
+      local window = tonumber(ARGV[1])
+      local count = redis.call('INCR', key)
+      if count == 1 then
+        redis.call('EXPIRE', key, window)
+      end
+      local ttl = redis.call('TTL', key)
+      return {count, ttl}
+    `;
 
-    // Se for a primeira vez (count === 1), definir TTL
-    if (count === 1) {
-      await this.client!.expire(rateLimitKey, windowSeconds);
+    try {
+      const result = await this.client!.eval(
+        luaScript,
+        1,
+        rateLimitKey,
+        windowSeconds.toString()
+      ) as [number, number];
+
+      const count = result[0];
+      const ttl = result[1];
+      const resetAt = ttl > 0 ? new Date(now + (ttl * 1000)) : new Date(now + windowMs);
+
+      const remaining = Math.max(0, limit - count);
+      const allowed = count <= limit;
+
+      return {
+        allowed,
+        remaining,
+        resetAt,
+      };
+    } catch (error) {
+      // Fallback para método não atômico se script Lua falhar
+      this.logger.warn({ key, error }, 'Erro ao executar script Lua. Usando método não atômico.');
+      
+      const count = await this.client!.incr(rateLimitKey);
+      if (count === 1) {
+        await this.client!.expire(rateLimitKey, windowSeconds);
+      }
+      const ttl = await this.client!.ttl(rateLimitKey);
+      const resetAt = ttl > 0 ? new Date(now + (ttl * 1000)) : new Date(now + windowMs);
+
+      const remaining = Math.max(0, limit - count);
+      const allowed = count <= limit;
+
+      return {
+        allowed,
+        remaining,
+        resetAt,
+      };
     }
-
-    // Obter TTL restante para calcular resetAt
-    const ttl = await this.client!.ttl(rateLimitKey);
-    const resetAt = ttl > 0 ? new Date(now + (ttl * 1000)) : new Date(now + windowMs);
-
-    const remaining = Math.max(0, limit - count);
-    const allowed = count <= limit;
-
-    return {
-      allowed,
-      remaining,
-      resetAt,
-    };
   }
 
   private hitInMemory(key: string, limit: number, windowSeconds: number): RateLimitResult {
