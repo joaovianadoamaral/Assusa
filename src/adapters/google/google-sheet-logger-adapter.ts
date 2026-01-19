@@ -334,15 +334,8 @@ export class GoogleSheetLoggerAdapter implements SheetLogger {
         extraJson,
       ];
 
-      // Adicionar linha à planilha
-      await this.sheets.spreadsheets.values.append({
-        spreadsheetId: this.spreadsheetId,
-        range: `${this.worksheetName}!A:${String.fromCharCode(64 + EVENT_COLUMNS.length)}`,
-        valueInputOption: 'RAW',
-        requestBody: {
-          values: [row],
-        },
-      });
+      // Adicionar linha à planilha com retry para lidar com concorrência
+      await this.appendWithRetry(row, 3);
 
       this.logger.debug({ eventType, status, fromMasked }, 'Evento registrado no Sheets');
     } catch (error) {
@@ -350,5 +343,50 @@ export class GoogleSheetLoggerAdapter implements SheetLogger {
       this.logger.error({ eventType, error: errorMessage }, 'Erro ao registrar evento no Sheets');
       // Não lançar erro para não quebrar o fluxo principal
     }
+  }
+
+  /**
+   * Adiciona linha à planilha com retry e backoff exponencial
+   * Isso ajuda a lidar com erros temporários de concorrência na API do Google
+   */
+  private async appendWithRetry(row: unknown[], maxRetries: number = 3): Promise<void> {
+    let lastError: Error | null = null;
+    const baseDelay = 100; // 100ms
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        await this.sheets.spreadsheets.values.append({
+          spreadsheetId: this.spreadsheetId,
+          range: `${this.worksheetName}!A:${String.fromCharCode(64 + EVENT_COLUMNS.length)}`,
+          valueInputOption: 'RAW',
+          requestBody: {
+            values: [row],
+          },
+        });
+        return; // Sucesso, sair do loop
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        // Se não for erro de rate limit ou conflito, não tentar novamente
+        const errorMessage = lastError.message.toLowerCase();
+        if (!errorMessage.includes('rate limit') && 
+            !errorMessage.includes('quota') && 
+            !errorMessage.includes('429') &&
+            !errorMessage.includes('conflict') &&
+            !errorMessage.includes('409')) {
+          throw lastError;
+        }
+
+        // Se não for a última tentativa, aguardar antes de tentar novamente
+        if (attempt < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, attempt); // Backoff exponencial
+          this.logger.debug({ attempt: attempt + 1, delay }, 'Retry ao adicionar linha no Sheets');
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // Se chegou aqui, todas as tentativas falharam
+    throw lastError || new Error('Falha ao adicionar linha após múltiplas tentativas');
   }
 }

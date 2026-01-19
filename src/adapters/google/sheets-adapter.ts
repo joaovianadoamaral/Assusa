@@ -33,16 +33,36 @@ export class GoogleSheetsAdapter implements SheetsPort {
     });
   }
 
+  // Lock para garantir que apenas uma thread atualize o cache por vez
+  private sheetIdCacheLock: Promise<void> = Promise.resolve();
+
   /**
    * Obtém o ID da planilha (sheet) pelo nome da aba
    * Usa cache para evitar múltiplas chamadas à API
+   * Thread-safe: garante que apenas uma requisição busque o ID por vez
    */
   private async getSheetId(): Promise<number> {
     if (this.sheetIdCache !== undefined) {
       return this.sheetIdCache;
     }
 
+    // Garantir que apenas uma thread busque o ID por vez
+    const previousLock = this.sheetIdCacheLock;
+    let resolveLock: () => void;
+    const newLock = new Promise<void>((resolve) => {
+      resolveLock = resolve;
+    });
+    this.sheetIdCacheLock = newLock;
+
     try {
+      // Aguardar lock anterior
+      await previousLock;
+
+      // Verificar novamente após adquirir lock (double-check)
+      if (this.sheetIdCache !== undefined) {
+        return this.sheetIdCache;
+      }
+
       const response = await this.sheets.spreadsheets.get({
         spreadsheetId: this.spreadsheetId,
       });
@@ -77,6 +97,9 @@ export class GoogleSheetsAdapter implements SheetsPort {
       const errorMessage = error instanceof Error ? error.message : 'Erro ao obter Sheet ID';
       this.logger.error({ error: errorMessage, worksheetName: this.worksheetName }, 'Erro ao obter Sheet ID');
       throw new Error(`Falha ao obter Sheet ID: ${errorMessage}`);
+    } finally {
+      // Liberar lock
+      resolveLock!();
     }
   }
 
