@@ -53,7 +53,7 @@ describe('DevTools Flow Tester', () => {
       getConversationState: vi.fn().mockResolvedValue(null),
     } as unknown as ApplicationService;
 
-    whatsappRouter = new WhatsappRouter(mockApplicationService, conversationStateStore);
+    whatsappRouter = new WhatsappRouter(mockApplicationService, conversationStateStore, mockLogger);
 
     // Config com DevTools habilitado
     config = {

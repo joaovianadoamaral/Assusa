@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WhatsappRouter } from '../../src/application/services/whatsapp-router.js';
 import { ApplicationService } from '../../src/application/services/application-service.js';
 import { ConversationStateStore } from '../../src/application/ports/driven/conversation-state-store.js';
+import { Logger } from '../../src/application/ports/driven/logger-port.js';
 import { FlowType } from '../../src/domain/enums/flow-type.js';
 
 describe('WhatsappRouter', () => {
   let router: WhatsappRouter;
   let mockApplicationService: ApplicationService;
   let mockConversationState: ConversationStateStore;
+  let mockLogger: Logger;
 
   beforeEach(() => {
     mockApplicationService = {
@@ -29,7 +31,14 @@ describe('WhatsappRouter', () => {
       clear: vi.fn(),
     } as unknown as ConversationStateStore;
 
-    router = new WhatsappRouter(mockApplicationService, mockConversationState);
+    mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    } as unknown as Logger;
+
+    router = new WhatsappRouter(mockApplicationService, mockConversationState, mockLogger);
   });
 
   describe('handleIncomingMessage - estados de conversação', () => {
