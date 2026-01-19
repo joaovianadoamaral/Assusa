@@ -170,7 +170,7 @@ async function bootstrap() {
     );
 
     // Inicializar WhatsappRouter
-    const whatsappRouter = new WhatsappRouter(applicationService, conversationStateStore);
+    const whatsappRouter = new WhatsappRouter(applicationService, conversationStateStore, logger);
 
     // Inicializar servidor HTTP
     const dependencies: AppDependencies = {
