@@ -6,15 +6,29 @@ const DEFAULT_TTL_SECONDS = 15 * 60; // 15 minutos
 /**
  * Implementação em memória do ConversationStateStore
  * Utilizada como fallback em desenvolvimento quando Redis não está disponível
+ * 
+ * Usa locks por chave para evitar race conditions em operações get/set concorrentes
  */
 export class InMemoryConversationStateStore implements ConversationStateStore {
   private storage: Map<string, { state: ConversationState; expiresAt: number }> = new Map();
+  // Mutex simples usando Promise para garantir operações atômicas por chave
+  private locks: Map<string, Promise<void>> = new Map();
 
   constructor(private logger: Logger) {
     this.logger.info({}, 'InMemoryConversationStateStore inicializado');
   }
 
   async get(from: string): Promise<ConversationState | null> {
+    const lock = this.acquireLock(from);
+    try {
+      await lock;
+      return this.getInternal(from);
+    } finally {
+      this.releaseLock(from);
+    }
+  }
+
+  private getInternal(from: string): ConversationState | null {
     const item = this.storage.get(from);
     if (!item) {
       return null;
@@ -29,6 +43,16 @@ export class InMemoryConversationStateStore implements ConversationStateStore {
   }
 
   async set(from: string, state: ConversationState, ttlSeconds: number = DEFAULT_TTL_SECONDS): Promise<void> {
+    const lock = this.acquireLock(from);
+    try {
+      await lock;
+      this.setInternal(from, state, ttlSeconds);
+    } finally {
+      this.releaseLock(from);
+    }
+  }
+
+  private setInternal(from: string, state: ConversationState, ttlSeconds: number): void {
     const expiresAt = Date.now() + ttlSeconds * 1000;
     this.storage.set(from, { state, expiresAt });
 
@@ -42,6 +66,27 @@ export class InMemoryConversationStateStore implements ConversationStateStore {
   }
 
   async clear(from: string): Promise<void> {
-    this.storage.delete(from);
+    const lock = this.acquireLock(from);
+    try {
+      await lock;
+      this.storage.delete(from);
+    } finally {
+      this.releaseLock(from);
+    }
+  }
+
+  private acquireLock(key: string): Promise<void> {
+    const existingLock = this.locks.get(key);
+    if (existingLock) {
+      return existingLock.then(() => this.acquireLock(key));
+    }
+
+    const lock = Promise.resolve();
+    this.locks.set(key, lock);
+    return lock;
+  }
+
+  private releaseLock(key: string): void {
+    this.locks.delete(key);
   }
 }

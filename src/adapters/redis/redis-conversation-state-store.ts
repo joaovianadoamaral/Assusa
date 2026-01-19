@@ -92,11 +92,75 @@ export class RedisConversationStateStore implements ConversationStateStore {
       const key = this.getKey(from);
       const value = JSON.stringify(state);
       
+      // SETEX é atômico, então não há race condition aqui
+      // Mas para operações read-modify-write, precisamos de lock distribuído
       await this.client.setex(key, ttlSeconds, value);
     } catch (error) {
       this.logger.warn({ from, error }, 'Erro ao salvar estado no Redis. Usando fallback.');
       this.setInMemory(from, state, ttlSeconds);
     }
+  }
+
+  /**
+   * Obtém e atualiza o estado de forma atômica usando lock distribuído
+   * Isso previne race conditions em operações read-modify-write
+   */
+  async getAndUpdate(
+    from: string,
+    updateFn: (currentState: ConversationState | null) => ConversationState,
+    ttlSeconds: number = DEFAULT_TTL_SECONDS
+  ): Promise<ConversationState> {
+    const lockKey = `${this.getKey(from)}:lock`;
+    const lockTtl = 5; // 5 segundos para o lock
+    const maxRetries = 10;
+    const retryDelay = 100; // 100ms
+
+    if (this.isFallback || !this.client) {
+      // Fallback: usar lock simples em memória
+      return this.getAndUpdateInMemory(from, updateFn, ttlSeconds);
+    }
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Tentar adquirir lock distribuído usando SETNX
+        const lockAcquired = await this.client.set(lockKey, '1', 'EX', lockTtl, 'NX');
+        
+        if (lockAcquired === 'OK') {
+          try {
+            // Lock adquirido, executar operação read-modify-write
+            const currentState = await this.get(from);
+            const newState = updateFn(currentState);
+            await this.set(from, newState, ttlSeconds);
+            return newState;
+          } finally {
+            // Sempre liberar o lock
+            await this.client.del(lockKey);
+          }
+        } else {
+          // Lock não disponível, aguardar e tentar novamente
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+      } catch (error) {
+        this.logger.warn({ from, attempt, error }, 'Erro ao obter/atualizar estado com lock. Tentando fallback.');
+        // Em caso de erro, tentar fallback em memória
+        return this.getAndUpdateInMemory(from, updateFn, ttlSeconds);
+      }
+    }
+
+    // Se não conseguiu adquirir lock após várias tentativas, usar fallback
+    this.logger.warn({ from }, 'Não foi possível adquirir lock após várias tentativas. Usando fallback.');
+    return this.getAndUpdateInMemory(from, updateFn, ttlSeconds);
+  }
+
+  private async getAndUpdateInMemory(
+    from: string,
+    updateFn: (currentState: ConversationState | null) => ConversationState,
+    ttlSeconds: number
+  ): Promise<ConversationState> {
+    const currentState = this.getFromMemory(from);
+    const newState = updateFn(currentState);
+    this.setInMemory(from, newState, ttlSeconds);
+    return newState;
   }
 
   async clear(from: string): Promise<void> {
